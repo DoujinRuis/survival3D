@@ -40,6 +40,8 @@
  */
 
 
+console.log("gitTest");
+
 (() => {
 
 const pluginName = "paypalShopWebhook";
