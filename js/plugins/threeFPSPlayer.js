@@ -51,7 +51,28 @@ class FPSCameraController {
         Input.keyMapper[16] = 'shift'; // ← Shiftキー
 
 
-        document.addEventListener('mousemove', this._onMouseMove.bind(this));
+        document.addEventListener('mousemove', (event) => {
+            if (document.pointerLockElement) {
+                this._onMouseMove(event);
+            }
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.code === 'Escape' || event.code === 'Tab') {
+                event.preventDefault(); // デフォルト動作の抑制（特にTab）
+
+                if (document.pointerLockElement) {
+                    document.exitPointerLock(); // ロック中なら解除
+                } else {
+                    const canvas = document.body.querySelector('canvas');
+                    if (canvas) {
+                        canvas.requestPointerLock(); // 解除中ならロック
+                    }
+                }
+            }
+        });
+
+
     }
 
     _onMouseMove(event) {
