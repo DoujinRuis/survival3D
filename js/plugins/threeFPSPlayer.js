@@ -26,7 +26,7 @@ class FPSCameraController {
         this.rotationX = 0;
         this.rotationY = 0;
 
-        this.moveSpeed = 0.1;
+        this.moveSpeed = 0.05;
 
         this._isJumping = false;
         this._jumpVelocity = 0;
@@ -106,7 +106,6 @@ class FPSCameraController {
     }
 
     const speed = this.getCurrentMoveSpeed();
-    console.log(`[FPS] 現在の移動速度: ${speed}`);
 
     const direction = new THREE.Vector3();
     this.camera.getWorldDirection(direction);
@@ -138,34 +137,72 @@ class FPSCameraController {
 getCurrentMoveSpeed() {
     const baseSpeed = this.moveSpeed;
     const dashSpeed = baseSpeed * 2.0;
+    const lowStaminaDashSpeed = baseSpeed * 1.4; // ← スタミナ低下時のダッシュ速度
     const crouchSpeed = baseSpeed * 0.4;
 
     const actor = $gameParty.leader();
+
+    // 疲労中は完全停止
+    if (this._isFatigued) {
+        console.log('[Move] 疲労中のため移動不可');
+        return 0.0;
+    }
+
     const isDashing = Input.isPressed('shift') && actor.stamina() > 0;
 
-    return this._isCrouching
-        ? crouchSpeed
-        : (isDashing ? dashSpeed : baseSpeed);
+    if (this._isCrouching) {
+        return crouchSpeed;
+    } else if (isDashing) {
+        if (actor.stamina() < 30) {
+            console.log('[Move] スタミナ低下 → ダッシュ弱体化');
+            return lowStaminaDashSpeed;
+        }
+        return dashSpeed;
+    } else {
+        return baseSpeed;
+    }
 }
 
+
+
 _updateStamina() {
+
     const actor = $gameParty.leader();
     const isMoving = Input.isPressed('w') || Input.isPressed('a') || Input.isPressed('s') || Input.isPressed('d');
     const isDashing = Input.isPressed('shift') && actor.stamina() > 0 && isMoving;
-    console.log(`[Stamina] ダッシュ中: ${isDashing}, スタミナ: ${actor.stamina()}`);
 
+    if (this._isFatigued) {
+        this._fatigueTimer--;
+
+        if (this._fatigueTimer <= 0) {
+            this._isFatigued = false;
+            console.log('[Stamina] 疲労解除');
+        }
+
+        return; // 疲労中は処理停止
+    }
 
     if (isDashing) {
         const stamina = actor.stamina();
-        actor.setStamina(Math.max(0, stamina - 0.5)); // 0.5ずつ減少
-        console.log(`[Stamina] 減少: ${actor.stamina()}`);
+        const next = Math.max(0, stamina - 0.5);
+        actor.setStamina(next);
+        console.log(`[Stamina] 減少: ${next}`);
+
+        if (next === 0) {
+            this._isFatigued = true;
+            this._fatigueTimer = 120; // 約2秒（1フレーム約16ms想定）
+            console.log('[Stamina] 疲労状態に移行');
+        }
+
     } else {
         const stamina = actor.stamina();
-        if (stamina < 100) {
-            actor.setStamina(stamina + 0.2); // ゆっくり回復
-            console.log(`[Stamina] 回復: ${actor.stamina()}`);
+        if (stamina < 100 && !this._isFatigued) {
+            const next = stamina + 0.2;
+            actor.setStamina(next);
+            console.log(`[Stamina] 回復: ${next}`);
         }
     }
+
 }
 
 
@@ -257,6 +294,10 @@ class Game_Actor_SurvivalExtension {
         actor._mental = 100;
         actor._fatigue = 0;
         actor._oxygen = 100;
+
+        this._fatigueTimer = 0;     // 秒数（例：120で2秒）
+        this._isFatigued = false;   // 行動不能フラグ
+
 
         actor._cameraController = null; // ← FPSCameraControllerの保持先
     }
@@ -374,7 +415,6 @@ static update() {
     this.updateBarSmoothly('hp-bar', actor.survivalHp());
     this.updateBarSmoothly('water-bar', actor.water());
     this.updateBarSmoothly('hunger-bar', actor.hunger());
-    console.log(`[HUD] スタミナ: ${actor.stamina()}`);
     this.updateBarSmoothly('stamina-bar', actor.stamina());
 }
 
@@ -389,9 +429,6 @@ static updateBarSmoothly(barId, targetValue) {
     const currentPercent = (computedWidth / parentWidth) * 100;
 
     const newPercent = currentPercent + (targetValue - currentPercent) * 0.1;
-
-    // デバッグ用ログ
-    console.log(`[HUD] 更新 ${barId} → ${newPercent.toFixed(1)}%`);
 
     bar.style.width = `${Math.max(0, Math.min(100, newPercent)).toFixed(1)}%`;
 }
