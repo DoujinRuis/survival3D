@@ -86,10 +86,7 @@
 
       this.createCrosshair();
 
-      const invDiv = document.getElementById('inventory-overlay');
-      // if (invDiv) {
-      //     invDiv.style.display = 'none';  // 強制的に非表示リセット
-      // }
+
 
     }
   };
@@ -115,8 +112,9 @@
       
     }
 
-    // プレイヤー制御
-    this.playerUpdate();
+    this.playerUpdate(); // ← FPSの移動＆スタミナ減少
+
+    this.hudUpdate();
     // 時間の表示
     this._updateGameTime();
     // this.hudUpdate();

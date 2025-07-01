@@ -105,14 +105,8 @@ class FPSCameraController {
         this._targetCameraY = this._cameraYBase;
     }
 
-    const isDashing = Input.isPressed('shift');
-    const baseSpeed = this.moveSpeed;
-    const dashSpeed = baseSpeed * 2.0;
-    const crouchSpeed = baseSpeed * 0.4;
-
-    const speed = this._isCrouching
-        ? crouchSpeed
-        : (isDashing ? dashSpeed : baseSpeed);
+    const speed = this.getCurrentMoveSpeed();
+    console.log(`[FPS] 現在の移動速度: ${speed}`);
 
     const direction = new THREE.Vector3();
     this.camera.getWorldDirection(direction);
@@ -137,7 +131,43 @@ class FPSCameraController {
     this._updateJump();
     this._updateCrouch();
     this._interpolateCameraHeight();
+    this._updateStamina();
+
 }
+
+getCurrentMoveSpeed() {
+    const baseSpeed = this.moveSpeed;
+    const dashSpeed = baseSpeed * 2.0;
+    const crouchSpeed = baseSpeed * 0.4;
+
+    const actor = $gameParty.leader();
+    const isDashing = Input.isPressed('shift') && actor.stamina() > 0;
+
+    return this._isCrouching
+        ? crouchSpeed
+        : (isDashing ? dashSpeed : baseSpeed);
+}
+
+_updateStamina() {
+    const actor = $gameParty.leader();
+    const isMoving = Input.isPressed('w') || Input.isPressed('a') || Input.isPressed('s') || Input.isPressed('d');
+    const isDashing = Input.isPressed('shift') && actor.stamina() > 0 && isMoving;
+    console.log(`[Stamina] ダッシュ中: ${isDashing}, スタミナ: ${actor.stamina()}`);
+
+
+    if (isDashing) {
+        const stamina = actor.stamina();
+        actor.setStamina(Math.max(0, stamina - 0.5)); // 0.5ずつ減少
+        console.log(`[Stamina] 減少: ${actor.stamina()}`);
+    } else {
+        const stamina = actor.stamina();
+        if (stamina < 100) {
+            actor.setStamina(stamina + 0.2); // ゆっくり回復
+            console.log(`[Stamina] 回復: ${actor.stamina()}`);
+        }
+    }
+}
+
 
     _updateJump() {
         // ジャンプ開始時に基準高さを設定
@@ -217,145 +247,174 @@ Scene_Map.prototype.playerUpdate = function () {
   // アクターの初期設定 //////////////////////////////////////////////////
   //////////////////////////////////////////////////////////////////////
 
-    const _Game_Actor_initMembers = Game_Actor.prototype.initMembers;
-    Game_Actor.prototype.initMembers = function() {
-        _Game_Actor_initMembers.call(this);
-        // ★ 実データ
-        this._survivalHp = 100;
-        this._water = 100;
-        this._hunger = 100;
-        // ★ 予約用
-        this._stamina = 100;
-        this._temperature = 36.5;
-        this._mental = 100;
-        this._fatigue = 0;
-        this._oxygen = 100;
-    };
+class Game_Actor_SurvivalExtension {
+    static initMembers(actor) {
+        actor._survivalHp = 100;
+        actor._water = 100;
+        actor._hunger = 100;
+        actor._stamina = 100;
+        actor._temperature = 36.5;
+        actor._mental = 100;
+        actor._fatigue = 0;
+        actor._oxygen = 100;
 
-    // ---------- HP ----------
-    Game_Actor.prototype.survivalHp = function() {
-        return this._survivalHp;
-    };
-    Game_Actor.prototype.setSurvivalHp = function(value) {
-        this._survivalHp = Math.max(0, Math.min(100, value)); // 0～100で制御
-    };
+        actor._cameraController = null; // ← FPSCameraControllerの保持先
+    }
 
-    // ---------- 水分 ----------
-    Game_Actor.prototype.water = function() {
-        return this._water;
-    };
-    Game_Actor.prototype.setWater = function(value) {
-        this._water = Math.max(0, Math.min(100, value));
-    };
+    static setCameraController(actor, camera) {
+        actor._cameraController = new FPSCameraController(camera);
+    }
 
-    // ---------- 空腹 ----------
-    Game_Actor.prototype.hunger = function() {
-        return this._hunger;
-    };
-    Game_Actor.prototype.setHunger = function(value) {
-        this._hunger = Math.max(0, Math.min(100, value));
-    };
+    static getCameraController(actor) {
+        return actor._cameraController;
+    }
 
-    // ---------- 追加予約用 ----------
-    Game_Actor.prototype.stamina = function() { return this._stamina; };
-    Game_Actor.prototype.setStamina = function(value) { this._stamina = value; };
+    static defineProperties() {
+        const props = [
+            ['survivalHp', '_survivalHp'],
+            ['water', '_water'],
+            ['hunger', '_hunger'],
+            ['stamina', '_stamina'],
+            ['temperature', '_temperature'],
+            ['mental', '_mental'],
+            ['fatigue', '_fatigue'],
+            ['oxygen', '_oxygen'],
+        ];
 
-    Game_Actor.prototype.temperature = function() { return this._temperature; };
-    Game_Actor.prototype.setTemperature = function(value) { this._temperature = value; };
+        for (const [prop, key] of props) {
+            Game_Actor.prototype[prop] = function () {
+                return this[key];
+            };
+            Game_Actor.prototype[`set${prop.charAt(0).toUpperCase() + prop.slice(1)}`] = function (value) {
+                if (['survivalHp', 'water', 'hunger'].includes(prop)) {
+                    this[key] = Math.max(0, Math.min(100, value));
+                } else {
+                    this[key] = value;
+                }
+            };
+        }
+    }
+}
 
-    Game_Actor.prototype.mental = function() { return this._mental; };
-    Game_Actor.prototype.setMental = function(value) { this._mental = value; };
+const _Game_Actor_initMembers = Game_Actor.prototype.initMembers;
+Game_Actor.prototype.initMembers = function () {
+    _Game_Actor_initMembers.call(this);
+    Game_Actor_SurvivalExtension.initMembers(this);
+};
 
-    Game_Actor.prototype.fatigue = function() { return this._fatigue; };
-    Game_Actor.prototype.setFatigue = function(value) { this._fatigue = value; };
-
-    Game_Actor.prototype.oxygen = function() { return this._oxygen; };
-    Game_Actor.prototype.setOxygen = function(value) { this._oxygen = value; };
+Game_Actor_SurvivalExtension.defineProperties();
 
 
-    Scene_Map.prototype.hudCreate = function () {
 
+
+class SurvivalHUD {
+ // HUDを生成
+    static create() {
         if (document.getElementById('hud-overlay')) return;
-    
-        // HUD全体
+
         const hud = document.createElement('div');
         hud.id = 'hud-overlay';
-        hud.style.position = 'absolute';
-        hud.style.bottom = '20px';
-        hud.style.left = '20px';
-        hud.style.width = '220px';
-        hud.style.background = 'rgba(0, 0, 0, 0.5)';
-        hud.style.padding = '10px';
-        hud.style.borderRadius = '8px';
-        hud.style.fontFamily = 'Arial, sans-serif';
-        hud.style.color = 'white';
-        hud.style.zIndex = '1000';
-    
-        // ゲージを作る関数
-        const createGaugeRow = (labelText, barId, barColor) => {
-            const row = document.createElement('div');
-            row.style.marginBottom = '8px';
-    
-            const label = document.createElement('span');
-            label.innerText = labelText;
-            row.appendChild(label);
-    
-            const barBackground = document.createElement('div');
-            barBackground.style.background = '#333';
-            barBackground.style.width = '100%';
-            barBackground.style.height = '10px';
-            barBackground.style.borderRadius = '5px';
-            barBackground.style.overflow = 'hidden';
-            barBackground.style.marginTop = '4px';
-    
-            const bar = document.createElement('div');
-            bar.id = barId;
-            bar.style.width = '100%';
-            bar.style.height = '100%';
-            bar.style.background = barColor;
-    
-            barBackground.appendChild(bar);
-            row.appendChild(barBackground);
-    
-            return row;
-        };
-    
-        // HPゲージ
-        hud.appendChild(createGaugeRow('HP', 'hp-bar', 'red'));
-        // 水分ゲージ
-        hud.appendChild(createGaugeRow('水分', 'water-bar', 'cyan'));
-        // 空腹ゲージ
-        hud.appendChild(createGaugeRow('空腹', 'hunger-bar', 'yellow'));
-    
-        // 追加
+        Object.assign(hud.style, {
+            position: 'absolute',
+            bottom: '20px',
+            left: '20px',
+            width: '220px',
+            background: 'rgba(0, 0, 0, 0.5)',
+            padding: '10px',
+            borderRadius: '8px',
+            fontFamily: 'Arial, sans-serif',
+            color: 'white',
+            zIndex: '1000',
+        });
+
+        // 各ゲージを追加
+        hud.appendChild(SurvivalHUD.createGaugeRow('HP', 'hp-bar', 'red'));
+        hud.appendChild(SurvivalHUD.createGaugeRow('水分', 'water-bar', 'cyan'));
+        hud.appendChild(SurvivalHUD.createGaugeRow('空腹', 'hunger-bar', 'yellow'));
+        hud.appendChild(SurvivalHUD.createGaugeRow('スタミナ', 'stamina-bar', 'lime'));
+
+
         document.body.appendChild(hud);
-    
-        
-    };
+    }
 
-    Scene_Map.prototype.hudUpdate = function () {
-        if (document.getElementById('hud-overlay')) {
-            const actor = $gameParty.leader();
-        
-            const hp = actor.survivalHp();
-            const water = actor.water();
-            const hunger = actor.hunger();
-        
-            document.getElementById('hp-bar').style.width = `${hp}%`;
-            document.getElementById('water-bar').style.width = `${water}%`;
-            document.getElementById('hunger-bar').style.width = `${hunger}%`;
-        }
+    // ゲージの行を生成
+    static createGaugeRow(labelText, barId, barColor) {
+        const row = document.createElement('div');
+        row.style.marginBottom = '8px';
 
-    };
-    
-    Scene_Map.prototype.hudRemove = function () {
+        const label = document.createElement('span');
+        label.innerText = labelText;
+        row.appendChild(label);
+
+        const barBackground = document.createElement('div');
+        barBackground.style.background = '#333';
+        barBackground.style.width = '100%';
+        barBackground.style.height = '10px';
+        barBackground.style.borderRadius = '5px';
+        barBackground.style.overflow = 'hidden';
+        barBackground.style.marginTop = '4px';
+
+        const bar = document.createElement('div');
+        bar.id = barId;
+        bar.style.width = '100%'; // 初期化
+        bar.style.height = '100%';
+        bar.style.background = barColor;
+
+        barBackground.appendChild(bar);
+        row.appendChild(barBackground);
+
+        return row;
+    }
+
+static update() {
+    const hud = document.getElementById('hud-overlay');
+    if (!hud) return;
+
+    const actor = $gameParty.leader();
+    this.updateBarSmoothly('hp-bar', actor.survivalHp());
+    this.updateBarSmoothly('water-bar', actor.water());
+    this.updateBarSmoothly('hunger-bar', actor.hunger());
+    console.log(`[HUD] スタミナ: ${actor.stamina()}`);
+    this.updateBarSmoothly('stamina-bar', actor.stamina());
+}
+
+// HUDのゲージバー（HP・スタミナなど）を滑らかに更新する処理
+static updateBarSmoothly(barId, targetValue) {
+    const bar = document.getElementById(barId);
+    if (!bar) return;
+
+    // 実際に表示されている幅を取得
+    const computedWidth = parseFloat(window.getComputedStyle(bar).width);
+    const parentWidth = parseFloat(window.getComputedStyle(bar.parentElement).width);
+    const currentPercent = (computedWidth / parentWidth) * 100;
+
+    const newPercent = currentPercent + (targetValue - currentPercent) * 0.1;
+
+    // デバッグ用ログ
+    console.log(`[HUD] 更新 ${barId} → ${newPercent.toFixed(1)}%`);
+
+    bar.style.width = `${Math.max(0, Math.min(100, newPercent)).toFixed(1)}%`;
+}
+
+
+
+    static remove() {
         const hud = document.getElementById('hud-overlay');
-        if (hud) {
-            hud.remove();
-        }
-    };
-    
+        if (hud) hud.remove();
+    }
+}
 
+Scene_Map.prototype.hudCreate = function () {
+    SurvivalHUD.create();
+};
+
+Scene_Map.prototype.hudUpdate = function () {
+    SurvivalHUD.update();
+};
+
+Scene_Map.prototype.hudRemove = function () {
+    SurvivalHUD.remove();
+};
 
 
 
