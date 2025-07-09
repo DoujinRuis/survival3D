@@ -109,13 +109,64 @@ Scene_Map.prototype.createAcorn = function(x, z) {
 
 
     
+///////////////////////////////////////////////////////////////////////
+// GLTFモデル ////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////
+
+class GltfModelItem {
+    constructor({
+        modelPath,
+        position = { x: 0, y: 0, z: 0 },
+        rotation = { x: 0, y: 0, z: 0 },
+        scale = { x: 1, y: 1, z: 1 },
+        itemData = {},
+        scene // THREE.Scene インスタンス
+    }) {
+        this.data = itemData;
+
+        const loader = new THREE.GLTFLoader();
+        loader.load(modelPath, (gltf) => {
+            this.mesh = gltf.scene;
+            this.mesh.position.set(position.x, position.y, position.z);
+            this.mesh.rotation.set(rotation.x, rotation.y, rotation.z);
+            this.mesh.scale.set(scale.x, scale.y, scale.z);
+            this.mesh.userData = itemData;
+
+            scene.add(this.mesh);
+
+            console.log("[GltfModelItem] モデル追加:", itemData.itemName);
+        }, undefined, (err) => {
+            console.error("[GltfModelItem] 読み込み失敗:", err);
+        });
+    }
+}
+
+Scene_Map.prototype.createKuromatu = function (x, z) {
+    const itemData = {
+        itemId: 3,
+        itemAmount: 1,
+        itemName: "黒松",
+        width: 1,
+        height: 1,
+        weight: 5,
+        inventoryImage: '3D/image/acorn.png',
+        hydration: 1,
+        capacity: 0
+    };
+
+    new GltfModelItem({
+        modelPath: '3D/models/kuromatu.glb',  // GLB or GLTFファイル
+        position: { x: x, y: 0.05, z: z },
+        scale: { x: 0.3, y: 0.3, z: 0.3 },
+        itemData,
+        scene: this._threeScene
+    });
+};
 
 
 
-
-
-    /////////////////////////////////////////////////////////////////////////
-    // アイテム効果 //////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////
+    // アイテム効果 ////////////////////////////////////////////////////////
     ///////////////////////////////////////////////////////////////////////
 
     const _Game_Actor_meetsItemConditions = Game_Actor.prototype.meetsItemConditions;

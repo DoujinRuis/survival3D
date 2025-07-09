@@ -10,26 +10,26 @@
 
 (() => {
 
-  // const loaderPath = "js/libs/GLTFLoader.bundle.js";
-  // const loadGLTFLoader = () => {
-  //   return new Promise((resolve, reject) => {
-  //     const script = document.createElement("script");
-  //     script.src = loaderPath;
-  //     script.onload = () => {
-  //       if (typeof GLTFLoader === "function") {
-  //         THREE.GLTFLoader = GLTFLoader(THREE);
-  //       }
-  //       resolve();
-  //     };
-  //     script.onerror = reject;
-  //     document.body.appendChild(script);
-  //   });
-  // };
+  const loaderPath = "js/libs/GLTFLoader.bundle.js";
+  const loadGLTFLoader = () => {
+    return new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = loaderPath;
+      script.onload = () => {
+        if (typeof GLTFLoader === "function") {
+          THREE.GLTFLoader = GLTFLoader(THREE);
+        }
+        resolve();
+      };
+      script.onerror = reject;
+      document.body.appendChild(script);
+    });
+  };
 
 
   // Three.jsの基本初期化だけをする関数
   const initThreeEnvironment = async function () {
-    // await loadGLTFLoader(); // 必要なライブラリロード（将来他にも使うため）
+    await loadGLTFLoader(); // 必要なライブラリロード（将来他にも使うため）
 
     // Three.jsレンダラー作成
     this._threeRenderer = new THREE.WebGLRenderer({ alpha: true });
@@ -77,6 +77,7 @@
 
       this.createBranch(2, 2);
       this.createAcorn(3, 3);
+      this.createKuromatu(4, 4);
 
 
       this._createTimeDisplay();
