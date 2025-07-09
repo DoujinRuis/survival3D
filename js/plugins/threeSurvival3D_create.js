@@ -72,7 +72,7 @@
 
       this.playerCreate();
 
-      this.loadEXRSky();
+      this.createSkyManager();
       this.createGround();
 
       this.createBranch(2, 2);
@@ -112,6 +112,8 @@
       this._skyInitialized = true;
       
     }
+
+    this.updateSkyManager();
 
     this.playerUpdate(); // ← FPSの移動＆スタミナ減少
 

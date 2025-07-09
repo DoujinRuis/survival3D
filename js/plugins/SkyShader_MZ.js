@@ -9,355 +9,304 @@
  */
 
 (() => {
-
-Scene_Map.prototype.initSkyShader = function () {
-  if (!THREE.Sky) {
-    console.error("[SkyLoader] THREE.Sky が存在しません！");
-    return;
+class SkyManager {
+  constructor(scene, renderer) {
+    this.scene = scene;
+    this.renderer = renderer;
+    this.sky = null;
+    this.sun = new THREE.Vector3();
+    this.clouds = null;
+    this.rain = null;
+    this.stars = null;
+    this.fireflies = null;
+    this.pmremGenerator = null;
   }
 
-  // Skyオブジェクトの作成とシーンへの追加
-  this._sky = new THREE.Sky();
-  // スケール：空のドームの大きさ（プレイヤー視点から見える範囲）
-  this._sky.scale.setScalar(450000);
-  this._threeScene.add(this._sky);
-
-
-  const uniforms = this._sky.material.uniforms;
-  // シェーダーパラメータ（大気の性質）設定
-  // turbidity（濁度）：大気中のちり・水蒸気の量 → 値を大きくすると曇り空に
-  // rayleigh（レイリー散乱）：空の青さに関係 → 値が大きいと青空が濃くなる
-  // mieCoefficient（ミー散乱量）：太陽の周囲の光のにじみ → 値が大きいと白く霞む
-  // mieDirectionalG（ミー散乱の方向性）：太陽光の広がり → 0に近いとシャープ、1に近いと柔らかい
-
-  uniforms['turbidity'].value = 15;
-  uniforms['rayleigh'].value = 1;
-  uniforms['mieCoefficient'].value = 0.01;
-  uniforms['mieDirectionalG'].value = 0.9;
-
-
-  const sun = new THREE.Vector3();
-  // 太陽の位置（球面座標で指定）
-  // - elevation: 高度（上空45度）
-  // - azimuth: 方位（南側）
-  sun.setFromSphericalCoords(1, THREE.MathUtils.degToRad(90 - 10), THREE.MathUtils.degToRad(180));
-  uniforms['sunPosition'].value.copy(sun);
-
-  // レンダリングの明るさ補正（トーンマッピングと露出）
-  this._threeRenderer.toneMapping = THREE.ACESFilmicToneMapping;
-  // toneMappingExposure を上げると全体が明るく、下げると暗くなる
-  this._threeRenderer.toneMappingExposure = 0.9;
-
-  // PMREM: Sky の環境光を反映するための処理
-  const pmremGenerator = new THREE.PMREMGenerator(this._threeRenderer);
-  pmremGenerator.compileEquirectangularShader();
-  this._threeScene.environment = null // pmremGenerator.fromScene(this._sky).texture;
-
-};
-
-
-
-// 雨初期化
-Scene_Map.prototype.initRainEffect = function () {
-  const rainCount = 10000;
-  const rainGeometry = new THREE.BufferGeometry();
-  const rainPositions = new Float32Array(rainCount * 3);
-
-  for (let i = 0; i < rainCount; i++) {
-    rainPositions[i * 3 + 0] = Math.random() * 200 - 100; // X
-    rainPositions[i * 3 + 1] = Math.random() * 100 + 50;  // Y
-    rainPositions[i * 3 + 2] = Math.random() * 200 - 100; // Z
-  }
-
-  rainGeometry.setAttribute('position', new THREE.BufferAttribute(rainPositions, 3));
-
-  const rainMaterial = new THREE.PointsMaterial({
-    color: 0xaaaaaa,
-    size: 0.2,
-    transparent: true,
-    opacity: 0.6,
-  });
-
-  this._rain = new THREE.Points(rainGeometry, rainMaterial);
-  this._threeScene.add(this._rain);
-
-  console.log("[RainEffect] 雨エフェクト初期化完了");
-};
-
-// 雨更新
-Scene_Map.prototype.updateRain = function () {
-  if (!this._rain) return;
-
-  const positions = this._rain.geometry.attributes.position.array;
-  for (let i = 1; i < positions.length; i += 3) {
-    positions[i] -= 1; // Y座標（高さ）を下げる
-    if (positions[i] < 0) {
-      positions[i] = 100; // 下に行きすぎたらリセット
+  initialize() {
+    if (!THREE.Sky) {
+      console.error("[SkyManager] THREE.Sky が存在しません！");
+      return;
     }
-  }
-  this._rain.geometry.attributes.position.needsUpdate = true;
-};
 
-// 雪初期化
-Scene_Map.prototype.initSnowEffect = function () {
-  const snowCount = 5000;
-  const snowGeometry = new THREE.BufferGeometry();
-  const snowPositions = new Float32Array(snowCount * 3);
+    // Sky作成
+    this.sky = new THREE.Sky();
+    this.sky.scale.setScalar(450000);
+    this.scene.add(this.sky);
 
-  for (let i = 0; i < snowCount; i++) {
-    snowPositions[i * 3 + 0] = Math.random() * 200 - 100; // X
-    snowPositions[i * 3 + 1] = Math.random() * 100 + 50;  // Y
-    snowPositions[i * 3 + 2] = Math.random() * 200 - 100; // Z
-  }
+    // 大気パラメータ
+    const uniforms = this.sky.material.uniforms;
+    uniforms['turbidity'].value = 15;
+    uniforms['rayleigh'].value = 1;
+    uniforms['mieCoefficient'].value = 0.01;
+    uniforms['mieDirectionalG'].value = 0.9;
 
-  snowGeometry.setAttribute('position', new THREE.BufferAttribute(snowPositions, 3));
+    // 太陽の初期位置（高度10度、方位180度）
+    this.sun.setFromSphericalCoords(1,
+      THREE.MathUtils.degToRad(80),
+      THREE.MathUtils.degToRad(180)
+    );
+    uniforms['sunPosition'].value.copy(this.sun);
 
-  const snowMaterial = new THREE.PointsMaterial({
-    color: 0xffffff,
-    size: 0.5,          // 雪は少し大きめ
-    transparent: true,
-    opacity: 0.8,
-  });
+    // トーンマッピング
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 0.9;
 
-  this._snow = new THREE.Points(snowGeometry, snowMaterial);
-  this._threeScene.add(this._snow);
+    // PMREM（Skyを反映した環境マップを生成）
+    this.pmremGenerator = new THREE.PMREMGenerator(this.renderer);
+    this.pmremGenerator.compileEquirectangularShader();
+    const envMap = this.pmremGenerator.fromScene(this.sky).texture;
+    this.scene.environment = envMap;
 
-  console.log("[SnowEffect] 雪エフェクト初期化完了");
-};
-
-// 雪更新
-Scene_Map.prototype.updateSnow = function () {
-  if (!this._snow) return;
-
-  const positions = this._snow.geometry.attributes.position.array;
-  for (let i = 0; i < positions.length; i += 3) {
-    positions[i + 1] -= 0.2; // Y軸をゆっくり落とす
-    positions[i + 0] += Math.sin(performance.now() * 0.001 + i) * 0.01; // 横にふらふら動かす
-    if (positions[i + 1] < 0) {
-      positions[i + 1] = 100; // 下に行ったらリセット
-    }
-  }
-  this._snow.geometry.attributes.position.needsUpdate = true;
-};
-
-// 炎パーティクル初期化
-Scene_Map.prototype.initFireEffect = function () {
-  const fireCount = 300;
-  const fireGeometry = new THREE.BufferGeometry();
-  const firePositions = new Float32Array(fireCount * 3);
-  const fireSpeeds = new Float32Array(fireCount);
-
-  for (let i = 0; i < fireCount; i++) {
-    firePositions[i * 3 + 0] = (Math.random() - 0.5) * 1; // Xちょっとばらけ
-    firePositions[i * 3 + 1] = 0;                         // Yは地面スタート
-    firePositions[i * 3 + 2] = (Math.random() - 0.5) * 1; // Zちょっとばらけ
-
-    fireSpeeds[i] = Math.random() * 0.01 + 0.01; // 上昇スピード
+    console.log("[SkyManager] 空と環境光を初期化しました");
   }
 
-  fireGeometry.setAttribute('position', new THREE.BufferAttribute(firePositions, 3));
-  fireGeometry.setAttribute('speed', new THREE.BufferAttribute(fireSpeeds, 1));
+updateSunPosition(hour) {
+  if (!this.sky) return;
 
-  const fireMaterial = new THREE.PointsMaterial({
-    color: 0xff6600,  // オレンジ色
-    size: 0.2,
-    transparent: true,
-    opacity: 0.8,
-  });
+  const uniforms = this.sky.material.uniforms;
 
-  this._fire = new THREE.Points(fireGeometry, fireMaterial);
-  this._threeScene.add(this._fire);
+  const theta = THREE.MathUtils.degToRad((hour / 24) * 360);
+  const phi = THREE.MathUtils.degToRad(90 - Math.cos((hour - 12) / 12 * Math.PI) * 90);
 
-  console.log("[FireEffect] 焚き火パーティクル初期化完了");
-};
+  this.sun.setFromSphericalCoords(1, phi, theta);
+  uniforms['sunPosition'].value.copy(this.sun);
 
-// 炎更新
-Scene_Map.prototype.updateFire = function () {
-  if (!this._fire) return;
+  // 🌙 自然な明るさに補間
+  this.renderer.toneMappingExposure = this.getSmoothExposure(hour);
 
-  const positions = this._fire.geometry.attributes.position.array;
-  const speeds = this._fire.geometry.attributes.speed.array;
+  const envMap = this.pmremGenerator.fromScene(this.sky).texture;
+  this.scene.environment = envMap;
+}
 
-  for (let i = 0; i < speeds.length; i++) {
-    positions[i * 3 + 1] += speeds[i]; // 上昇させる
-
-    if (positions[i * 3 + 1] > 2.0) {
-      // 上に行きすぎたらリセット
-      positions[i * 3 + 1] = 0;
-      positions[i * 3 + 0] = (Math.random() - 0.5) * 1;
-      positions[i * 3 + 2] = (Math.random() - 0.5) * 1;
-    }
-  }
-  this._fire.geometry.attributes.position.needsUpdate = true;
-};
-
-// 星初期化
-Scene_Map.prototype.initStarEffect = function () {
-  const starCount = 1000;
-  const starGeometry = new THREE.BufferGeometry();
-  const starPositions = new Float32Array(starCount * 3);
-  const starOpacities = new Float32Array(starCount);
-
-  for (let i = 0; i < starCount; i++) {
-    starPositions[i * 3 + 0] = Math.random() * 300 - 150; // X
-    starPositions[i * 3 + 1] = Math.random() * 100 + 50;  // Y（空高く）
-    starPositions[i * 3 + 2] = Math.random() * 300 - 150; // Z
-
-    starOpacities[i] = Math.random() * 0.5 + 0.5; // 初期の明るさ
+getSmoothExposure(hour) {
+  // 朝（4:00〜6:00） 0.05 → 0.6（以前より抑えめ）
+  if (hour >= 4 && hour < 6) {
+    const t = (hour - 4) / 2;
+    return this._lerp(0.05, 0.6, t);
   }
 
-  starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
-  starGeometry.setAttribute('opacity', new THREE.BufferAttribute(starOpacities, 1));
-
-  const starMaterial = new THREE.PointsMaterial({
-    color: 0xffffff,
-    size: 0.1,
-    transparent: true,
-    opacity: 1.0,
-    depthWrite: false, // 星は奥行き無視して常に見える
-  });
-
-  this._stars = new THREE.Points(starGeometry, starMaterial);
-  this._threeScene.add(this._stars);
-
-  console.log("[StarEffect] 星エフェクト初期化完了");
-};
-
-// 星更新
-Scene_Map.prototype.updateStar = function () {
-  if (!this._stars) return;
-
-  const time = performance.now() * 0.001;
-  const opacities = this._stars.geometry.attributes.opacity.array;
-  const material = this._stars.material;
-
-  // 時間によって輝きをチカチカさせる
-  let avgOpacity = 0;
-  for (let i = 0; i < opacities.length; i++) {
-    opacities[i] = 0.5 + Math.sin(time + i) * 0.3; // -0.3～+0.3振動
-    avgOpacity += opacities[i];
-  }
-  avgOpacity /= opacities.length;
-
-  // 全体の平均でMaterialの透明度を軽く変える（ふわふわ感）
-  material.opacity = avgOpacity;
-
-  this._stars.geometry.attributes.opacity.needsUpdate = true;
-};
-
-// 蛍初期化
-Scene_Map.prototype.initFireflyEffect = function () {
-  const fireflyCount = 100;
-  const fireflyGeometry = new THREE.BufferGeometry();
-  const fireflyPositions = new Float32Array(fireflyCount * 3);
-  const fireflyPhases = new Float32Array(fireflyCount); // 個別のチカチカ周期
-
-  for (let i = 0; i < fireflyCount; i++) {
-    fireflyPositions[i * 3 + 0] = (Math.random() - 0.5) * 20; // X周囲ランダム
-    fireflyPositions[i * 3 + 1] = Math.random() * 5 + 1;       // Y地面から少し上
-    fireflyPositions[i * 3 + 2] = (Math.random() - 0.5) * 20; // Z周囲ランダム
-
-    fireflyPhases[i] = Math.random() * Math.PI * 2; // 個別フェーズ
+  // 昼（6:00〜16:00） 一定値（以前の0.9 → 0.6）
+  if (hour >= 6 && hour < 16) {
+    return 0.6;
   }
 
-  fireflyGeometry.setAttribute('position', new THREE.BufferAttribute(fireflyPositions, 3));
-  fireflyGeometry.setAttribute('phase', new THREE.BufferAttribute(fireflyPhases, 1));
-
-  const fireflyMaterial = new THREE.PointsMaterial({
-    color: 0x88ff88, // 黄緑色
-    size: 0.2,
-    transparent: true,
-    opacity: 0.8,
-    depthWrite: false,
-  });
-
-  this._fireflies = new THREE.Points(fireflyGeometry, fireflyMaterial);
-  this._threeScene.add(this._fireflies);
-
-  console.log("[FireflyEffect] ホタルエフェクト初期化完了");
-};
-
-// 蛍更新
-Scene_Map.prototype.updateFirefly = function () {
-  if (!this._fireflies) return;
-
-  const time = performance.now() * 0.001;
-  const positions = this._fireflies.geometry.attributes.position.array;
-  const phases = this._fireflies.geometry.attributes.phase.array;
-
-  for (let i = 0; i < phases.length; i++) {
-    const baseIndex = i * 3;
-
-    // 軽く上下に揺れる
-    positions[baseIndex + 1] += Math.sin(time + phases[i]) * 0.005;
-
-    // 左右にもふらふら漂う
-    positions[baseIndex + 0] += Math.cos(time + phases[i]) * 0.002;
-    positions[baseIndex + 2] += Math.sin(time * 0.5 + phases[i]) * 0.002;
+  // 夕（16:00〜18:00） 0.6 → 0.05
+  if (hour >= 16 && hour < 18) {
+    const t = (hour - 16) / 2;
+    return this._lerp(0.6, 0.05, t);
   }
 
-  // チカチカする（materialの透明度で全体調整）
-  const intensity = 0.5 + Math.sin(time * 2) * 0.3; // -0.3～+0.3
-  this._fireflies.material.opacity = intensity;
+  // 夜間（18:00〜4:00）暗く固定
+  return 0.05;
+}
 
-  this._fireflies.geometry.attributes.position.needsUpdate = true;
-};
 
-// 雲初期化
-Scene_Map.prototype.initCloudEffect = function () {
-  const cloudGroup = new THREE.Group(); // グループ作る！
+// 雲の初期化メソッド
+initCloudEffect({
+  groupCount = 10,
+  cloudPerGroup = 30,
+  spread = 10,
+  size = 10.0,
+  heightMin = 80,
+  heightMax = 110
+} = {}) {
+  const cloudGroup = new THREE.Group();
 
-  const groupCount = 10; // 10個くらいの雲の塊を作る
   for (let g = 0; g < groupCount; g++) {
-    const cloudCount = 30; // 1グループに30粒くらい
-    const cloudGeometry = new THREE.BufferGeometry();
-    const cloudPositions = new Float32Array(cloudCount * 3);
+    const geometry = new THREE.BufferGeometry();
+    const positions = new Float32Array(cloudPerGroup * 3);
 
-    for (let i = 0; i < cloudCount; i++) {
-      cloudPositions[i * 3 + 0] = (Math.random() - 0.5) * 10; // 10m以内で広げる
-      cloudPositions[i * 3 + 1] = (Math.random() - 0.5) * 5;  // Yも少しばらける
-      cloudPositions[i * 3 + 2] = (Math.random() - 0.5) * 10;
+    for (let i = 0; i < cloudPerGroup; i++) {
+      positions[i * 3 + 0] = (Math.random() - 0.5) * spread;
+      positions[i * 3 + 1] = (Math.random() - 0.5) * (spread * 0.5);
+      positions[i * 3 + 2] = (Math.random() - 0.5) * spread;
     }
 
-    cloudGeometry.setAttribute('position', new THREE.BufferAttribute(cloudPositions, 3));
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
 
-    const cloudMaterial = new THREE.PointsMaterial({
+    const material = new THREE.PointsMaterial({
       color: 0xffffff,
-      size: 10.0,
+      size: size,
       transparent: true,
       opacity: 0.4,
       depthWrite: false
     });
 
-    const cloud = new THREE.Points(cloudGeometry, cloudMaterial);
-
-    // グループごとにランダム配置
+    const cloud = new THREE.Points(geometry, material);
     cloud.position.set(
       Math.random() * 500 - 250,
-      Math.random() * 30 + 80,
+      Math.random() * (heightMax - heightMin) + heightMin,
       Math.random() * 500 - 250
     );
 
     cloudGroup.add(cloud);
   }
 
-  this._clouds = cloudGroup;
-  this._threeScene.add(this._clouds);
+  this.clouds = cloudGroup;
+  this.scene.add(this.clouds);
 
-  console.log("[CloudEffect] 雲エフェクト初期化完了");
+  console.log("[SkyManager] 雲エフェクト初期化完了");
+}
+
+// 雲の更新メソッド
+updateCloudEffect(speed = 0.01) {
+  if (!this.clouds) return;
+
+  this.clouds.children.forEach(cloud => {
+    cloud.position.x += speed;
+    if (cloud.position.x > 250) cloud.position.x = -250;
+  });
+}
+
+  initRainEffect(count = 10000) {
+    const rainGeometry = new THREE.BufferGeometry();
+    const rainPositions = new Float32Array(count * 3);
+
+    for (let i = 0; i < count; i++) {
+      rainPositions[i * 3 + 0] = Math.random() * 200 - 100;
+      rainPositions[i * 3 + 1] = Math.random() * 100 + 50;
+      rainPositions[i * 3 + 2] = Math.random() * 200 - 100;
+    }
+
+    rainGeometry.setAttribute('position', new THREE.BufferAttribute(rainPositions, 3));
+
+    const rainMaterial = new THREE.PointsMaterial({
+      color: 0xaaaaaa,
+      size: 0.2,
+      transparent: true,
+      opacity: 0.6,
+    });
+
+    this.rain = new THREE.Points(rainGeometry, rainMaterial);
+    this.scene.add(this.rain);
+
+    console.log("[SkyManager] 雨エフェクト初期化完了");
+  }
+
+  updateRain() {
+    if (!this.rain) return;
+
+    const positions = this.rain.geometry.attributes.position.array;
+    for (let i = 1; i < positions.length; i += 3) {
+      positions[i] -= 1;
+      if (positions[i] < 0) positions[i] = 100;
+    }
+    this.rain.geometry.attributes.position.needsUpdate = true;
+  }
+
+  // 星初期化
+  initStarEffect(starCount = 1000) {
+    const starGeometry = new THREE.BufferGeometry();
+    const starPositions = new Float32Array(starCount * 3);
+    const starOpacities = new Float32Array(starCount);
+
+    for (let i = 0; i < starCount; i++) {
+      starPositions[i * 3 + 0] = Math.random() * 300 - 150; // X
+      starPositions[i * 3 + 1] = Math.random() * 100 + 50;  // Y
+      starPositions[i * 3 + 2] = Math.random() * 300 - 150; // Z
+      starOpacities[i] = Math.random() * 0.5 + 0.5;
+    }
+
+    starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+    starGeometry.setAttribute('opacity', new THREE.BufferAttribute(starOpacities, 1));
+
+    const starMaterial = new THREE.PointsMaterial({
+      color: 0xffffff,
+      size: 0.1,
+      transparent: true,
+      opacity: 1.0,
+      depthWrite: false,
+    });
+
+    this.stars = new THREE.Points(starGeometry, starMaterial);
+    this.scene.add(this.stars);
+
+    console.log("[SkyManager] 星エフェクト初期化完了");
+  }
+
+  updateStarEffect() {
+    if (!this.stars) return;
+
+    const time = performance.now() * 0.001;
+    const opacities = this.stars.geometry.attributes.opacity.array;
+    const material = this.stars.material;
+
+    let avgOpacity = 0;
+    for (let i = 0; i < opacities.length; i++) {
+      opacities[i] = 0.5 + Math.sin(time + i) * 0.3;
+      avgOpacity += opacities[i];
+    }
+
+    avgOpacity /= opacities.length;
+    material.opacity = avgOpacity;
+
+    this.stars.geometry.attributes.opacity.needsUpdate = true;
+  }
+
+  // 蛍初期化
+  initFireflyEffect(fireflyCount = 100) {
+  const geometry = new THREE.BufferGeometry();
+  const positions = new Float32Array(fireflyCount * 3);
+  const phases = new Float32Array(fireflyCount);
+
+  for (let i = 0; i < fireflyCount; i++) {
+    positions[i * 3 + 0] = (Math.random() - 0.5) * 20;
+    positions[i * 3 + 1] = Math.random() * 5 + 1;
+    positions[i * 3 + 2] = (Math.random() - 0.5) * 20;
+    phases[i] = Math.random() * Math.PI * 2;
+  }
+
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute('phase', new THREE.BufferAttribute(phases, 1));
+
+  const material = new THREE.PointsMaterial({
+    color: 0x88ff88,
+    size: 0.2,
+    transparent: true,
+    opacity: 0.8,
+    depthWrite: false,
+  });
+
+  this.fireflies = new THREE.Points(geometry, material);
+  this.scene.add(this.fireflies);
+
+  console.log("[SkyManager] ホタルエフェクト初期化完了");
+}
+
+updateFireflyEffect() {
+  if (!this.fireflies) return;
+
+  const time = performance.now() * 0.001;
+  const positions = this.fireflies.geometry.attributes.position.array;
+  const phases = this.fireflies.geometry.attributes.phase.array;
+
+  for (let i = 0; i < phases.length; i++) {
+    const idx = i * 3;
+    positions[idx + 1] += Math.sin(time + phases[i]) * 0.005;
+    positions[idx + 0] += Math.cos(time + phases[i]) * 0.002;
+    positions[idx + 2] += Math.sin(time * 0.5 + phases[i]) * 0.002;
+  }
+
+  const flicker = 0.5 + Math.sin(time * 2) * 0.3;
+  this.fireflies.material.opacity = flicker;
+
+  this.fireflies.geometry.attributes.position.needsUpdate = true;
+}
+}
+
+// グローバル登録：Scene_Mapから使えるように
+Scene_Map.prototype.createSkyManager = function () {
+  this._skyManager = new SkyManager(this._threeScene, this._threeRenderer);
+  this._skyManager.initialize();
+  // this._skyManager.initRainEffect();
 };
 
-// 雲更新
-Scene_Map.prototype.updateCloud = function () {
-  if (!this._clouds) return;
-
-  this._clouds.children.forEach(cloud => {
-    cloud.position.x += 0.01; // それぞれの雲の塊を流す
-
-    if (cloud.position.x > 250) {
-      cloud.position.x = -250; // 端まで行ったら戻す
-    }
-  });
+Scene_Map.prototype.updateSkyManager = function () {
+  if (!this._skyManager) return;
+  const time = $gameSystem.getSurvivalTime();
+  const hour = time.hour + time.minute / 60;
+  this._skyManager.updateSunPosition(hour);
+  // this._skyManager.updateRain();
 };
 
 

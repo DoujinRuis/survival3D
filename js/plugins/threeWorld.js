@@ -52,57 +52,73 @@ Scene_Map.prototype._createTimeDisplay = function() {
 };
 
 
-Scene_Map.prototype._updateGameTime = function() {
-    const framesPerSecond = 60;
-    const timeData = $gameSystem.getSurvivalTime();
+Scene_Map.prototype._updateGameTime = function () {
+  const isDebugFastTime = true; // デバッグ用
+  const framesPerSecond = 60;
+  const timeData = $gameSystem.getSurvivalTime();
 
-    timeData.accumulator++;
+  timeData.accumulator++;
+
+  if (isDebugFastTime) {
+    // デバッグ：1秒で1時間進む
     if (timeData.accumulator >= framesPerSecond) {
-        timeData.accumulator = 0;
-        timeData.second++;
+      timeData.accumulator = 0;
+      timeData.hour++;
+      if (timeData.hour >= 24) {
+        timeData.hour = 0;
+      }
+    }
+  } else {
+    // 通常モード：リアル時間進行（1分→1時間）
+    if (timeData.accumulator >= framesPerSecond) {
+      timeData.accumulator = 0;
+      timeData.second++;
 
-        if (timeData.second >= 60) {
-            timeData.second = 0;
-            timeData.minute++;
-            if (timeData.minute >= 60) {
-                timeData.minute = 0;
-                timeData.hour++;
-                if (timeData.hour >= 24) {
-                    timeData.hour = 0;
-                }
-            }
+      if (timeData.second >= 60) {
+        timeData.second = 0;
+        timeData.minute++;
+        if (timeData.minute >= 60) {
+          timeData.minute = 0;
+          timeData.hour++;
+          if (timeData.hour >= 24) {
+            timeData.hour = 0;
+          }
         }
+      }
+    }
+  }
+
+  // ★ 時間経過に応じた状態変化処理（共通）
+  const actor = $gameParty.leader();
+
+  if (timeData.accumulator === 0 && (timeData.hour + timeData.minute + timeData.second > 0)) {
+    if (timeData.second % 10 === 0 || isDebugFastTime) {
+      const currentWater = actor.water();
+      actor.setWater(currentWater - 1);
     }
 
-    // ★ 時間経過ごとの処理（中身は同じ）
-    const actor = $gameParty.leader();
-
-    if (timeData.accumulator === 0 && (timeData.hour + timeData.minute + timeData.second > 0)) {
-        if (timeData.second % 10 === 0) {
-            const currentWater = actor.water();
-            actor.setWater(currentWater - 1);
-        }
-        if (timeData.second % 30 === 0) {
-            const currentHunger = actor.hunger();
-            actor.setHunger(currentHunger - 1);
-        }
-        const currentHp = actor.survivalHp();
-        if (actor.water() <= 0) {
-            actor.setSurvivalHp(currentHp - 3);
-        }
-        if (actor.hunger() <= 0) {
-            actor.setSurvivalHp(actor.survivalHp() - 1);
-        }
-        if (actor.survivalHp() <= 0) {
-            $gameSwitches.setValue(1, false);
-            this.hudRemove();
-            this._timeElement.style.display = 'none';
-            if (document.exitPointerLock) document.exitPointerLock();
-            SceneManager.goto(Scene_Gameover);
-        }
+    if (timeData.second % 30 === 0 || isDebugFastTime) {
+      const currentHunger = actor.hunger();
+      actor.setHunger(currentHunger - 1);
     }
 
-    this._refreshTimeDisplay();
+    const currentHp = actor.survivalHp();
+    if (actor.water() <= 0) {
+      actor.setSurvivalHp(currentHp - 3);
+    }
+    if (actor.hunger() <= 0) {
+      actor.setSurvivalHp(actor.survivalHp() - 1);
+    }
+    if (actor.survivalHp() <= 0) {
+      $gameSwitches.setValue(1, false);
+      this.hudRemove();
+      if (this._timeElement) this._timeElement.style.display = 'none';
+      if (document.exitPointerLock) document.exitPointerLock();
+      SceneManager.goto(Scene_Gameover);
+    }
+  }
+
+  this._refreshTimeDisplay();
 };
 
 Scene_Map.prototype._refreshTimeDisplay = function() {
