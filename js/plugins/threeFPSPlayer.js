@@ -265,6 +265,14 @@ _updateStamina() {
         document.exitPointerLock();
     }
 
+    // コンパス機能用
+    getForwardVector() {
+        const dir = new THREE.Vector3();
+        this.camera.getWorldDirection(dir); // カメラの向き（正面）
+        return dir.normalize();
+    }
+
+
 }
 
 Scene_Map.prototype.playerCreate = function () {

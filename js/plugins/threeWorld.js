@@ -53,7 +53,7 @@ Scene_Map.prototype._createTimeDisplay = function() {
 
 
 Scene_Map.prototype._updateGameTime = function () {
-  const isDebugFastTime = true; // デバッグ用
+  const isDebugFastTime = false; // デバッグ用
   const framesPerSecond = 60;
   const timeData = $gameSystem.getSurvivalTime();
 

@@ -87,6 +87,10 @@
 
       this.createCrosshair();
 
+      // コンパス用
+      this._createDirectionDisplay();
+
+
 
 
     }
@@ -120,9 +124,14 @@
     this.hudUpdate();
     // 時間の表示
     this._updateGameTime();
-    // this.hudUpdate();
 
-    //if (Input.isTriggered('tab')) this.inventory2DToggle();
+    // カメラの方向ベクトル取得して表示更新
+    if (this._cameraController && this._directionElement) {
+      const forwardVec = this._cameraController.getForwardVector();
+      this._updateDirectionDisplay(forwardVec);
+    }
+
+
 
     // if(this._rain) this.updateRain();    // 雨更新
     // if(this._snow) this.updateSnow();    // 雪更新
