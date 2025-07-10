@@ -9,57 +9,149 @@
  */
 
 (() => {
-class SkyManager {
-  constructor(scene, renderer) {
-    this.scene = scene;
-    this.renderer = renderer;
-    this.sky = null;
-    this.sun = new THREE.Vector3();
-    this.clouds = null;
-    this.rain = null;
-    this.stars = null;
-    this.fireflies = null;
-    this.pmremGenerator = null;
+
+  class TimeManager {
+  constructor() {
+    this._data = {
+      hour: 6,
+      minute: 0,
+      second: 0,
+      day: 1,
+      accumulator: 0
+    };
+    this._initTimeDisplay();
   }
 
-  initialize() {
-    if (!THREE.Sky) {
-      console.error("[SkyManager] THREE.Sky が存在しません！");
-      return;
+  _initTimeDisplay() {
+    let div = document.getElementById('time-display');
+    if (!div) {
+      div = document.createElement('div');
+      div.id = 'time-display';
+      Object.assign(div.style, {
+        position: 'absolute',
+        top: '10px',
+        left: '10px',
+        color: '#ffffff',
+        fontSize: '18px',
+        fontFamily: 'Arial, sans-serif',
+        textShadow: '0 0 3px #000',
+        zIndex: 20
+      });
+      document.body.appendChild(div);
+    }
+    this._timeElement = div;
+  }
+
+  update() {
+    const framesPerSecond = 60;
+    const t = this._data;
+    t.accumulator++;
+
+    if (t.accumulator >= framesPerSecond) {
+      t.accumulator = 0;
+      t.second++;
+      if (t.second >= 60) {
+        t.second = 0;
+        t.minute++;
+        if (t.minute >= 60) {
+          t.minute = 0;
+          t.hour++;
+          if (t.hour >= 24) {
+            t.hour = 0;
+            t.day++;
+          }
+        }
+      }
     }
 
-    // 月の作成
-    this.createMoon();
-
-    // Sky作成
-    this.sky = new THREE.Sky();
-    this.sky.scale.setScalar(450000);
-    this.scene.add(this.sky);
-
-    // 大気パラメータ
-    const uniforms = this.sky.material.uniforms;
-    uniforms['turbidity'].value = 15;
-    uniforms['rayleigh'].value = 1;
-    uniforms['mieCoefficient'].value = 0.01;
-    uniforms['mieDirectionalG'].value = 0.9;
-
-    // 太陽の初期位置（高度10度、方位180度）
-    this.sun.setFromSphericalCoords(1,
-      THREE.MathUtils.degToRad(80),
-      THREE.MathUtils.degToRad(180)
-    );
-    uniforms['sunPosition'].value.copy(this.sun);
-
-    // トーンマッピング
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 0.9;
-
-    // PMREM（Skyを反映した環境マップを生成）
-    this.pmremGenerator = new THREE.PMREMGenerator(this.renderer);
-    this.pmremGenerator.compileEquirectangularShader();
-    const envMap = this.pmremGenerator.fromScene(this.sky).texture;
-    this.scene.environment = envMap;
+    this._refreshDisplay();
   }
+
+  _refreshDisplay() {
+    const t = this._data;
+    const hh = String(t.hour).padStart(2, '0');
+    const mm = String(t.minute).padStart(2, '0');
+    const ss = String(t.second).padStart(2, '0');
+    const dd = t.day;
+
+    this._timeElement.innerHTML = `
+      <strong>${dd}日目</strong><br>
+      時刻: ${hh}:${mm}:${ss}<br><br>
+      <strong>操作説明</strong><br>
+      WASDで移動 / Shiftでダッシュ<br>
+      Spaceでジャンプ / Tabでインベントリ<br>
+      EscとTabでロック解除
+    `;
+  }
+
+  get hour() {
+    return this._data.hour;
+  }
+
+  terminate() {
+    if (this._timeElement) {
+      this._timeElement.remove();
+      this._timeElement = null;
+    }
+  }
+}
+
+  ///////////////////////////////////////////////////////////////////////////////////////////
+  // 空の設定 /////////////////////////////////////////////////////////////////////////////
+  //////////////////////////////////////////////////////////////////////////////////////////
+
+  class SkyManager {
+    constructor(scene, renderer) {
+      this.scene = scene;
+      this.renderer = renderer;
+      this.sky = null;
+      this.sun = new THREE.Vector3();
+      this.clouds = null;
+      this.rain = null;
+      this.stars = null;
+      this.fireflies = null;
+      this.pmremGenerator = null;
+      this.timeManager = new TimeManager();
+    }
+
+    initialize() {
+      if (!THREE.Sky) {
+        console.error("[SkyManager] THREE.Sky が存在しません！");
+        return;
+      }
+
+      // 月の作成
+      this.createMoon();
+
+      // Sky作成
+      this.sky = new THREE.Sky();
+      this.sky.scale.setScalar(450000);
+      this.scene.add(this.sky);
+
+      // 大気パラメータ
+      const uniforms = this.sky.material.uniforms;
+      uniforms['turbidity'].value = 15;
+      uniforms['rayleigh'].value = 1;
+      uniforms['mieCoefficient'].value = 0.01;
+      uniforms['mieDirectionalG'].value = 0.9;
+
+      // 太陽の初期位置（高度10度、方位180度）
+      this.sun.setFromSphericalCoords(1,
+        THREE.MathUtils.degToRad(80),
+        THREE.MathUtils.degToRad(180)
+      );
+      uniforms['sunPosition'].value.copy(this.sun);
+
+      // トーンマッピング
+      this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      this.renderer.toneMappingExposure = 0.9;
+
+      // PMREM（Skyを反映した環境マップを生成）
+      this.pmremGenerator = new THREE.PMREMGenerator(this.renderer);
+      this.pmremGenerator.compileEquirectangularShader();
+      const envMap = this.pmremGenerator.fromScene(this.sky).texture;
+      this.scene.environment = envMap;
+    }
 
 updateSunPosition(hour) {
   if (!this.sky) return;
@@ -148,22 +240,40 @@ updateSunPosition(hour) {
       switch (weather) {
         case 'clear': return 1.0;
         case 'fine':  return 0.9;
-        case 'cloudy': return 0.3;
+        case 'cloudy': return 0.6;
+        case 'rain':  return 0.4; // ☔ 雨はさらに暗く
         default: return 1.0;
       }
     }
 
-
-
     // 雲の初期化メソッド
+    /**
+     * 雲を生成してシーンに追加する（パラメータで晴れ／曇りを切り替え可能）
+     * @param {Object} options - 雲生成のオプション
+     * @param {number} options.groupCount - 雲のグループ数
+     * @param {number} options.cloudPerGroup - グループ内の粒数
+     * @param {number} options.spread - 各雲グループ内の広がり
+     * @param {number} options.size - 雲粒のサイズ
+     * @param {number} options.opacity - 雲の透明度
+     * @param {number} options.heightMin - 雲の高さ最小値
+     * @param {number} options.heightMax - 雲の高さ最大値
+     * @param {string} options.color - 雲の色（例："#ffffff"）
+     */
     initCloudEffect({
       groupCount = 10,
       cloudPerGroup = 30,
       spread = 10,
-      size = 10.0,
+      size = 10,
+      opacity = 0.4,
       heightMin = 80,
-      heightMax = 110
+      heightMax = 110,
+      color = 0xffffff
     } = {}) {
+      if (this.clouds) {
+        this.scene.remove(this.clouds);
+        this.clouds = null;
+      }
+
       const cloudGroup = new THREE.Group();
 
       for (let g = 0; g < groupCount; g++) {
@@ -179,10 +289,10 @@ updateSunPosition(hour) {
         geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
 
         const material = new THREE.PointsMaterial({
-          color: 0xffffff,
+          color: color,
           size: size,
           transparent: true,
-          opacity: 0.4,
+          opacity: opacity,
           depthWrite: false
         });
 
@@ -200,6 +310,7 @@ updateSunPosition(hour) {
       this.scene.add(this.clouds);
     }
 
+
     // 雲の更新メソッド
     updateCloudEffect(speed = 0.01) {
       if (!this.clouds) return;
@@ -210,57 +321,53 @@ updateSunPosition(hour) {
       });
     }
 
-    setCloudySky() {
-      // 既存の雲を削除
-      if (this.clouds) {
-        this.scene.remove(this.clouds);
-        this.clouds = null;
-      }
-
-      const cloudGroup = new THREE.Group();
-      const count = 100; // ここで雲の数
-
-      for (let i = 0; i < count; i++) {
-        const geometry = new THREE.BufferGeometry();
-        const positions = new Float32Array(30 * 3);
-        for (let j = 0; j < 30; j++) {
-          positions[j * 3 + 0] = (Math.random() - 0.5) * 20;
-          positions[j * 3 + 1] = (Math.random() - 0.5) * 10;
-          positions[j * 3 + 2] = (Math.random() - 0.5) * 20;
+    /**
+     * 雲の表示／非表示と種類（fine/cloudy）を切り替える
+     * @param {boolean} visible - 表示するか
+     * @param {string} [type] - 雲の種類：'fine' または 'cloudy'
+     */
+    setCloudVisibility(visible, type = 'fine') {
+      if (visible) {
+        // すでに雲がある場合は削除して置き換え
+        if (this.clouds) {
+          this.scene.remove(this.clouds);
+          this.clouds = null;
         }
-        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
 
-        const material = new THREE.PointsMaterial({
-          color: 0x888888,
-          size: 30,
-          opacity: 0.6,
-          transparent: true,
-          depthWrite: false
-        });
-
-        const cloud = new THREE.Points(geometry, material);
-        cloud.position.set(
-          Math.random() * 300 - 150,
-          Math.random() * 20 + 80,
-          Math.random() * 300 - 150
-        );
-        cloudGroup.add(cloud);
+        if (type === 'fine') {
+          this.initCloudEffect({
+            groupCount: 10,
+            cloudPerGroup: 30,
+            spread: 20,
+            size: 15,
+            opacity: 0.3,
+            heightMin: 80,
+            heightMax: 110,
+            color: 0xffffff
+          });
+        } else if (type === 'cloudy') {
+          this.initCloudEffect({
+            groupCount: 100,
+            cloudPerGroup: 30,
+            spread: 30,
+            size: 30,
+            opacity: 0.6,
+            heightMin: 80,
+            heightMax: 100,
+            color: 0x888888
+          });
+        } else {
+          console.warn(`[SkyManager] 不明な雲タイプ: ${type}`);
+        }
+      } else {
+        // 非表示にする場合
+        if (this.clouds) {
+          this.scene.remove(this.clouds);
+          this.clouds = null;
+        }
       }
-
-      this.clouds = cloudGroup;
-      this.scene.add(this.clouds);
     }
 
-    setCloudVisibility(visible) {
-      if (visible && !this.clouds) {
-        this.initCloudEffect(); // 既存の雲生成メソッドを使用
-      }
-
-      if (!visible && this.clouds) {
-        this.scene.remove(this.clouds);
-        this.clouds = null;
-      }
-    }
 
     initRainEffect(count = 10000) {
       const rainGeometry = new THREE.BufferGeometry();
@@ -294,6 +401,15 @@ updateSunPosition(hour) {
           if (positions[i] < 0) positions[i] = 100;
         }
         this.rain.geometry.attributes.position.needsUpdate = true;
+      }
+
+      setRainActive(active) {
+        if (active && !this.rain) {
+          this.initRainEffect();
+        } else if (!active && this.rain) {
+          this.scene.remove(this.rain);
+          this.rain = null;
+        }
       }
 
       // 星初期化
@@ -392,22 +508,11 @@ updateSunPosition(hour) {
     }
   }
 
-  // グローバル登録：Scene_Mapから使えるように
-  Scene_Map.prototype.createSkyManager = function () {
-    this._skyManager = new SkyManager(this._threeScene, this._threeRenderer);
-    this._skyManager.initialize();
-    // this._skyManager.initRainEffect();
-  };
-
-  Scene_Map.prototype.updateSkyManager = function () {
-    if (!this._skyManager) return;
-    const time = $gameSystem.getSurvivalTime();
-    const hour = time.hour + time.minute / 60;
-    this._skyManager.updateSunPosition(hour);
-    this._skyManager.updateMoonPosition(hour);
-    this.updateCloudEffect();
-    // this._skyManager.updateRain();
-  };
+  // // グローバル登録：Scene_Mapから使えるように
+  // Scene_Map.prototype.createSkyManager = function () {
+  //   this._skyManager = new SkyManager(this._threeScene, this._threeRenderer);
+  //   this._skyManager.initialize();
+  // };
 
   ///////////////////////////////////////////////////////////////////////////////////////////
   // 天候の設定 /////////////////////////////////////////////////////////////////////////////
@@ -430,10 +535,19 @@ updateSunPosition(hour) {
     _applyWeather(type) {
       if (type === 'clear') {
         this.skyManager.setCloudVisibility(false);
-      } else if (type === 'fine') {
-        this.skyManager.setCloudVisibility(true);
-      } else if (type === 'cloudy') {
-        this.skyManager.setCloudySky();                // 曇り空の生成
+      } 
+      else if (type === 'fine') {
+        this.skyManager.setCloudVisibility(false);
+        this.skyManager.setCloudVisibility(true, 'fine');
+      } 
+      else if (type === 'cloudy') {
+        this.skyManager.setCloudVisibility(false);
+        this.skyManager.setCloudVisibility(true, 'cloudy');
+      }
+      else if (type === 'rain') {
+        this.skyManager.setCloudVisibility(false);
+        this.skyManager.setCloudVisibility(true, 'cloudy');
+        this.skyManager.setRainActive(true);
       }
     }
 
@@ -478,17 +592,28 @@ updateSunPosition(hour) {
     this._weatherType = type;
   };
 
-  Game_System.prototype.decideRandomWeather = function () {
-    const rand = Math.random();
-    let weather;
-    if (rand < 0.2) weather = 'clear';
-    else if (rand < 0.2) weather = 'fine';
-    else if (rand < 0.8) weather = 'cloudy'; // 曇り20%
-    this.setWeatherType(weather);
+Game_System.prototype.decideRandomWeather = function () {
+  // ⭐ デバッグスイッチと変数をチェック
+  const isDebug = true; // デバッグスイッチ ON のとき
+  const override = 'rain'; // 手動で天候文字列を代入
 
-    console.log(`[Weather] 天候決定: ${weather}`);
-  };
+  const valid = ['clear', 'fine', 'cloudy', 'rain'];
 
+  let weather;
+
+  if (isDebug && valid.includes(override)) {
+    weather = override;
+  } else {
+    const r = Math.random();
+    if (r < 0.2) weather = 'clear';
+    else if (r < 0.4) weather = 'fine';
+    else if (r < 0.7) weather = 'cloudy';
+    else weather = 'rain'; // ← 追加：30% のうちの一部が雨
+    console.log(`[Weather] ランダム天候決定: ${weather}`);
+  }
+
+  this.setWeatherType(weather);
+};
 
   ///////////////////////////////////////////////////////////////////////////////////////////
   // 空のまとめ /////////////////////////////////////////////////////////////////////////////
@@ -500,6 +625,7 @@ updateSunPosition(hour) {
       this.renderer = renderer;
       this._skyManager = new SkyManager(scene, renderer);
       this._weatherManager = new WeatherManager(this._skyManager);
+      this._timeManager = new TimeManager();
     }
 
     initialize() {
@@ -511,11 +637,13 @@ updateSunPosition(hour) {
 
 
     update() {
-      const time = $gameSystem.getSurvivalTime();
-      const hour = time.hour + time.minute / 60;
+      this._timeManager.update(); // ← ここで戻り値を使ってないので変数不要
+      const hour = this._timeManager.hour;
       this._skyManager.updateSunPosition(hour);
       this._skyManager.updateMoonPosition(hour);
       this._weatherManager.update(); // 状態が変わっていれば反映
+      this._skyManager.updateCloudEffect();
+      this._skyManager.updateRain();
     }
   }
 
@@ -595,7 +723,37 @@ Scene_Map.prototype._removeDirectionDisplay = function () {
   }
 };
 
+  ///////////////////////////////////////////////////////////////////////////////////////////
+  // その他の設定 ///////////////////////////////////////////////////////////////////////////
+  //////////////////////////////////////////////////////////////////////////////////////////
 
+  // デフォルトのメニュー画面無効化
+  const _Scene_Map_callMenu = Scene_Map.prototype.callMenu;
+  Scene_Map.prototype.callMenu = function() {
+      if ($gameSwitches.value(1)) {
+          // 3Dシーンのときはメニューを無効化する
+          return;
+      }
+
+      // それ以外は通常通り
+      _Scene_Map_callMenu.call(this);
+  };
+
+    Scene_Map.prototype.createCrosshair = function() {
+    const crosshair = document.createElement('div');
+    crosshair.id = 'crosshair';
+    crosshair.style.position = 'absolute';
+    crosshair.style.top = '50%';
+    crosshair.style.left = '50%';
+    crosshair.style.width = '8px';
+    crosshair.style.height = '8px';
+    crosshair.style.marginLeft = '-4px'; // 中央に合わせる
+    crosshair.style.marginTop = '-4px';  // 中央に合わせる
+    crosshair.style.backgroundColor = 'white';
+    crosshair.style.borderRadius = '50%';
+    crosshair.style.zIndex = '20';
+    document.body.appendChild(crosshair);
+};
 
 })();
 

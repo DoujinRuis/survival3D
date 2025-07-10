@@ -73,21 +73,19 @@
       this.createSkyController();
       this.createGround();
 
-      this.createBranch(2, 2);
-      this.createAcorn(3, 3);
-      this.createKuromatu(4, 4);
+      // this.createBranch(2, 2);
+      // this.createAcorn(3, 3);
+      // this.createKuromatu(4, 4);
 
 
-      this._createTimeDisplay();
       // モデル読み込みとかは別にする
 
       this.hudCreate();
 
-      this.createCrosshair();
-
       // コンパス用
       this._createDirectionDisplay();
 
+      this.createCrosshair();
     }
   };
 
@@ -99,18 +97,11 @@
       this._threeRenderer.render(this._threeScene, this._threeCamera);
     }
 
-    // if ($gameSwitches.value(1) && !this._skyInitialized && this._threeScene && this._threeRenderer) {
-    //   this._skyInitialized = true;
-      
-    // }
-
     this.updateSkyController();
 
     this.playerUpdate(); // ← FPSの移動＆スタミナ減少
 
     this.hudUpdate();
-    // 時間の表示
-    this._updateGameTime();
 
     // カメラの方向ベクトル取得して表示更新
     if (this._cameraController && this._directionElement) {
