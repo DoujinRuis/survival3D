@@ -133,8 +133,6 @@ class GltfModelItem {
             this.mesh.userData = itemData;
 
             scene.add(this.mesh);
-
-            console.log("[GltfModelItem] モデル追加:", itemData.itemName);
         }, undefined, (err) => {
             console.error("[GltfModelItem] 読み込み失敗:", err);
         });
@@ -189,7 +187,6 @@ Scene_Map.prototype.createKuromatu = function (x, z) {
         _Game_Actor_useItem.call(this, item);
     
         if (item && item.id === 2) { // アイテムID 2 = どんぐり
-            console.log("どんぐりを使ったよ！");
     
             // 水分回復
             const currentWater = this.water();
@@ -198,9 +195,7 @@ Scene_Map.prototype.createKuromatu = function (x, z) {
             // 空腹回復
             const currentHunger = this.hunger();
             this.setHunger(Math.min(100, currentHunger + 2));
-    
-            // ★ デバッグログ
-            console.log(`水分: ${this.water()} 空腹: ${this.hunger()}`);
+
         }
     };
     

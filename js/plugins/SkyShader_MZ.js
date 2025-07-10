@@ -30,7 +30,6 @@ class SkyManager {
 
     // 月の作成
     this.createMoon();
-    console.log("▶ createMoon 呼び出し");
 
     // Sky作成
     this.sky = new THREE.Sky();
@@ -60,8 +59,6 @@ class SkyManager {
     this.pmremGenerator.compileEquirectangularShader();
     const envMap = this.pmremGenerator.fromScene(this.sky).texture;
     this.scene.environment = envMap;
-
-    console.log("[SkyManager] 空と環境光を初期化しました");
   }
 
 updateSunPosition(hour) {
@@ -114,244 +111,431 @@ updateSunPosition(hour) {
     this._moon.position.copy(pos.multiplyScalar(1000));
   }
 
-getSmoothExposure(hour) {
-  // 朝（4:00〜6:00） 0.05 → 0.6（以前より抑えめ）
-  if (hour >= 4 && hour < 6) {
-    const t = (hour - 4) / 2;
-    return this._lerp(0.05, 0.6, t);
-  }
+    getSmoothExposure(hour) {
+      const weather = $gameSystem.weatherType();
+      const factor = this._weatherLightFactor(weather); // ← 天候による光の係数
 
-  // 昼（6:00〜16:00） 一定値（以前の0.9 → 0.6）
-  if (hour >= 6 && hour < 16) {
-    return 0.6;
-  }
+      let baseExposure;
 
-  // 夕（16:00〜18:00） 0.6 → 0.05
-  if (hour >= 16 && hour < 18) {
-    const t = (hour - 16) / 2;
-    return this._lerp(0.6, 0.05, t);
-  }
+      // 朝（4:00〜6:00） 0.05 → 0.6（以前より抑えめ）
+      if (hour >= 4 && hour < 6) {
+        const t = (hour - 4) / 2;
+        baseExposure = this._lerp(0.05, 0.6, t);
+      }
+      // 昼（6:00〜16:00）一定
+      else if (hour >= 6 && hour < 16) {
+        baseExposure = 0.6;
+      }
+      // 夕（16:00〜18:00）0.6 → 0.05
+      else if (hour >= 16 && hour < 18) {
+        const t = (hour - 16) / 2;
+        baseExposure = this._lerp(0.6, 0.05, t);
+      }
+      // 夜間（18:00〜4:00）暗く固定
+      else {
+        baseExposure = 0.2;
+      }
 
-  // 夜間（18:00〜4:00）暗く固定
-  return 0.2;
-}
-
-_lerp(a, b, t) {
-  return a + (b - a) * t;
-}
-
-// 雲の初期化メソッド
-initCloudEffect({
-  groupCount = 10,
-  cloudPerGroup = 30,
-  spread = 10,
-  size = 10.0,
-  heightMin = 80,
-  heightMax = 110
-} = {}) {
-  const cloudGroup = new THREE.Group();
-
-  for (let g = 0; g < groupCount; g++) {
-    const geometry = new THREE.BufferGeometry();
-    const positions = new Float32Array(cloudPerGroup * 3);
-
-    for (let i = 0; i < cloudPerGroup; i++) {
-      positions[i * 3 + 0] = (Math.random() - 0.5) * spread;
-      positions[i * 3 + 1] = (Math.random() - 0.5) * (spread * 0.5);
-      positions[i * 3 + 2] = (Math.random() - 0.5) * spread;
+      // ⭐ 天候による明るさ調整
+      return baseExposure * factor;
     }
 
-    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-
-    const material = new THREE.PointsMaterial({
-      color: 0xffffff,
-      size: size,
-      transparent: true,
-      opacity: 0.4,
-      depthWrite: false
-    });
-
-    const cloud = new THREE.Points(geometry, material);
-    cloud.position.set(
-      Math.random() * 500 - 250,
-      Math.random() * (heightMax - heightMin) + heightMin,
-      Math.random() * 500 - 250
-    );
-
-    cloudGroup.add(cloud);
-  }
-
-  this.clouds = cloudGroup;
-  this.scene.add(this.clouds);
-
-  console.log("[SkyManager] 雲エフェクト初期化完了");
-}
-
-// 雲の更新メソッド
-updateCloudEffect(speed = 0.01) {
-  if (!this.clouds) return;
-
-  this.clouds.children.forEach(cloud => {
-    cloud.position.x += speed;
-    if (cloud.position.x > 250) cloud.position.x = -250;
-  });
-}
-
-  initRainEffect(count = 10000) {
-    const rainGeometry = new THREE.BufferGeometry();
-    const rainPositions = new Float32Array(count * 3);
-
-    for (let i = 0; i < count; i++) {
-      rainPositions[i * 3 + 0] = Math.random() * 200 - 100;
-      rainPositions[i * 3 + 1] = Math.random() * 100 + 50;
-      rainPositions[i * 3 + 2] = Math.random() * 200 - 100;
+    _lerp(a, b, t) {
+      return a + (b - a) * t;
     }
 
-    rainGeometry.setAttribute('position', new THREE.BufferAttribute(rainPositions, 3));
-
-    const rainMaterial = new THREE.PointsMaterial({
-      color: 0xaaaaaa,
-      size: 0.2,
-      transparent: true,
-      opacity: 0.6,
-    });
-
-    this.rain = new THREE.Points(rainGeometry, rainMaterial);
-    this.scene.add(this.rain);
-
-    console.log("[SkyManager] 雨エフェクト初期化完了");
-  }
-
-  updateRain() {
-    if (!this.rain) return;
-
-    const positions = this.rain.geometry.attributes.position.array;
-    for (let i = 1; i < positions.length; i += 3) {
-      positions[i] -= 1;
-      if (positions[i] < 0) positions[i] = 100;
-    }
-    this.rain.geometry.attributes.position.needsUpdate = true;
-  }
-
-  // 星初期化
-  initStarEffect(starCount = 1000) {
-    const starGeometry = new THREE.BufferGeometry();
-    const starPositions = new Float32Array(starCount * 3);
-    const starOpacities = new Float32Array(starCount);
-
-    for (let i = 0; i < starCount; i++) {
-      starPositions[i * 3 + 0] = Math.random() * 300 - 150; // X
-      starPositions[i * 3 + 1] = Math.random() * 100 + 50;  // Y
-      starPositions[i * 3 + 2] = Math.random() * 300 - 150; // Z
-      starOpacities[i] = Math.random() * 0.5 + 0.5;
+    _weatherLightFactor(weather) {
+      switch (weather) {
+        case 'clear': return 1.0;
+        case 'fine':  return 0.9;
+        case 'cloudy': return 0.3;
+        default: return 1.0;
+      }
     }
 
-    starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
-    starGeometry.setAttribute('opacity', new THREE.BufferAttribute(starOpacities, 1));
 
-    const starMaterial = new THREE.PointsMaterial({
-      color: 0xffffff,
-      size: 0.1,
-      transparent: true,
-      opacity: 1.0,
-      depthWrite: false,
-    });
 
-    this.stars = new THREE.Points(starGeometry, starMaterial);
-    this.scene.add(this.stars);
+    // 雲の初期化メソッド
+    initCloudEffect({
+      groupCount = 10,
+      cloudPerGroup = 30,
+      spread = 10,
+      size = 10.0,
+      heightMin = 80,
+      heightMax = 110
+    } = {}) {
+      const cloudGroup = new THREE.Group();
 
-    console.log("[SkyManager] 星エフェクト初期化完了");
-  }
+      for (let g = 0; g < groupCount; g++) {
+        const geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(cloudPerGroup * 3);
 
-  updateStarEffect() {
-    if (!this.stars) return;
+        for (let i = 0; i < cloudPerGroup; i++) {
+          positions[i * 3 + 0] = (Math.random() - 0.5) * spread;
+          positions[i * 3 + 1] = (Math.random() - 0.5) * (spread * 0.5);
+          positions[i * 3 + 2] = (Math.random() - 0.5) * spread;
+        }
 
-    const time = performance.now() * 0.001;
-    const opacities = this.stars.geometry.attributes.opacity.array;
-    const material = this.stars.material;
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
 
-    let avgOpacity = 0;
-    for (let i = 0; i < opacities.length; i++) {
-      opacities[i] = 0.5 + Math.sin(time + i) * 0.3;
-      avgOpacity += opacities[i];
+        const material = new THREE.PointsMaterial({
+          color: 0xffffff,
+          size: size,
+          transparent: true,
+          opacity: 0.4,
+          depthWrite: false
+        });
+
+        const cloud = new THREE.Points(geometry, material);
+        cloud.position.set(
+          Math.random() * 500 - 250,
+          Math.random() * (heightMax - heightMin) + heightMin,
+          Math.random() * 500 - 250
+        );
+
+        cloudGroup.add(cloud);
+      }
+
+      this.clouds = cloudGroup;
+      this.scene.add(this.clouds);
     }
 
-    avgOpacity /= opacities.length;
-    material.opacity = avgOpacity;
+    // 雲の更新メソッド
+    updateCloudEffect(speed = 0.01) {
+      if (!this.clouds) return;
 
-    this.stars.geometry.attributes.opacity.needsUpdate = true;
+      this.clouds.children.forEach(cloud => {
+        cloud.position.x += speed;
+        if (cloud.position.x > 250) cloud.position.x = -250;
+      });
+    }
+
+    setCloudySky() {
+      // 既存の雲を削除
+      if (this.clouds) {
+        this.scene.remove(this.clouds);
+        this.clouds = null;
+      }
+
+      const cloudGroup = new THREE.Group();
+      const count = 100; // ここで雲の数
+
+      for (let i = 0; i < count; i++) {
+        const geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(30 * 3);
+        for (let j = 0; j < 30; j++) {
+          positions[j * 3 + 0] = (Math.random() - 0.5) * 20;
+          positions[j * 3 + 1] = (Math.random() - 0.5) * 10;
+          positions[j * 3 + 2] = (Math.random() - 0.5) * 20;
+        }
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+        const material = new THREE.PointsMaterial({
+          color: 0x888888,
+          size: 30,
+          opacity: 0.6,
+          transparent: true,
+          depthWrite: false
+        });
+
+        const cloud = new THREE.Points(geometry, material);
+        cloud.position.set(
+          Math.random() * 300 - 150,
+          Math.random() * 20 + 80,
+          Math.random() * 300 - 150
+        );
+        cloudGroup.add(cloud);
+      }
+
+      this.clouds = cloudGroup;
+      this.scene.add(this.clouds);
+    }
+
+    setCloudVisibility(visible) {
+      if (visible && !this.clouds) {
+        this.initCloudEffect(); // 既存の雲生成メソッドを使用
+      }
+
+      if (!visible && this.clouds) {
+        this.scene.remove(this.clouds);
+        this.clouds = null;
+      }
+    }
+
+    initRainEffect(count = 10000) {
+      const rainGeometry = new THREE.BufferGeometry();
+      const rainPositions = new Float32Array(count * 3);
+
+      for (let i = 0; i < count; i++) {
+        rainPositions[i * 3 + 0] = Math.random() * 200 - 100;
+        rainPositions[i * 3 + 1] = Math.random() * 100 + 50;
+        rainPositions[i * 3 + 2] = Math.random() * 200 - 100;
+      }
+
+      rainGeometry.setAttribute('position', new THREE.BufferAttribute(rainPositions, 3));
+
+      const rainMaterial = new THREE.PointsMaterial({
+        color: 0xaaaaaa,
+        size: 0.2,
+        transparent: true,
+        opacity: 0.6,
+      });
+
+      this.rain = new THREE.Points(rainGeometry, rainMaterial);
+      this.scene.add(this.rain);
+    }
+
+      updateRain() {
+        if (!this.rain) return;
+
+        const positions = this.rain.geometry.attributes.position.array;
+        for (let i = 1; i < positions.length; i += 3) {
+          positions[i] -= 1;
+          if (positions[i] < 0) positions[i] = 100;
+        }
+        this.rain.geometry.attributes.position.needsUpdate = true;
+      }
+
+      // 星初期化
+      initStarEffect(starCount = 1000) {
+        const starGeometry = new THREE.BufferGeometry();
+        const starPositions = new Float32Array(starCount * 3);
+        const starOpacities = new Float32Array(starCount);
+
+        for (let i = 0; i < starCount; i++) {
+          starPositions[i * 3 + 0] = Math.random() * 300 - 150; // X
+          starPositions[i * 3 + 1] = Math.random() * 100 + 50;  // Y
+          starPositions[i * 3 + 2] = Math.random() * 300 - 150; // Z
+          starOpacities[i] = Math.random() * 0.5 + 0.5;
+        }
+
+        starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+        starGeometry.setAttribute('opacity', new THREE.BufferAttribute(starOpacities, 1));
+
+        const starMaterial = new THREE.PointsMaterial({
+          color: 0xffffff,
+          size: 0.1,
+          transparent: true,
+          opacity: 1.0,
+          depthWrite: false,
+        });
+
+        this.stars = new THREE.Points(starGeometry, starMaterial);
+        this.scene.add(this.stars);
+      }
+
+      updateStarEffect() {
+        if (!this.stars) return;
+
+        const time = performance.now() * 0.001;
+        const opacities = this.stars.geometry.attributes.opacity.array;
+        const material = this.stars.material;
+
+        let avgOpacity = 0;
+        for (let i = 0; i < opacities.length; i++) {
+          opacities[i] = 0.5 + Math.sin(time + i) * 0.3;
+          avgOpacity += opacities[i];
+        }
+
+        avgOpacity /= opacities.length;
+        material.opacity = avgOpacity;
+
+        this.stars.geometry.attributes.opacity.needsUpdate = true;
+      }
+
+      // 蛍初期化
+      initFireflyEffect(fireflyCount = 100) {
+      const geometry = new THREE.BufferGeometry();
+      const positions = new Float32Array(fireflyCount * 3);
+      const phases = new Float32Array(fireflyCount);
+
+      for (let i = 0; i < fireflyCount; i++) {
+        positions[i * 3 + 0] = (Math.random() - 0.5) * 20;
+        positions[i * 3 + 1] = Math.random() * 5 + 1;
+        positions[i * 3 + 2] = (Math.random() - 0.5) * 20;
+        phases[i] = Math.random() * Math.PI * 2;
+      }
+
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      geometry.setAttribute('phase', new THREE.BufferAttribute(phases, 1));
+
+      const material = new THREE.PointsMaterial({
+        color: 0x88ff88,
+        size: 0.2,
+        transparent: true,
+        opacity: 0.8,
+        depthWrite: false,
+      });
+
+      this.fireflies = new THREE.Points(geometry, material);
+      this.scene.add(this.fireflies);
+    }
+
+    updateFireflyEffect() {
+      if (!this.fireflies) return;
+
+      const time = performance.now() * 0.001;
+      const positions = this.fireflies.geometry.attributes.position.array;
+      const phases = this.fireflies.geometry.attributes.phase.array;
+
+      for (let i = 0; i < phases.length; i++) {
+        const idx = i * 3;
+        positions[idx + 1] += Math.sin(time + phases[i]) * 0.005;
+        positions[idx + 0] += Math.cos(time + phases[i]) * 0.002;
+        positions[idx + 2] += Math.sin(time * 0.5 + phases[i]) * 0.002;
+      }
+
+      const flicker = 0.5 + Math.sin(time * 2) * 0.3;
+      this.fireflies.material.opacity = flicker;
+
+      this.fireflies.geometry.attributes.position.needsUpdate = true;
+    }
   }
 
-  // 蛍初期化
-  initFireflyEffect(fireflyCount = 100) {
-  const geometry = new THREE.BufferGeometry();
-  const positions = new Float32Array(fireflyCount * 3);
-  const phases = new Float32Array(fireflyCount);
+  // グローバル登録：Scene_Mapから使えるように
+  Scene_Map.prototype.createSkyManager = function () {
+    this._skyManager = new SkyManager(this._threeScene, this._threeRenderer);
+    this._skyManager.initialize();
+    // this._skyManager.initRainEffect();
+  };
 
-  for (let i = 0; i < fireflyCount; i++) {
-    positions[i * 3 + 0] = (Math.random() - 0.5) * 20;
-    positions[i * 3 + 1] = Math.random() * 5 + 1;
-    positions[i * 3 + 2] = (Math.random() - 0.5) * 20;
-    phases[i] = Math.random() * Math.PI * 2;
+  Scene_Map.prototype.updateSkyManager = function () {
+    if (!this._skyManager) return;
+    const time = $gameSystem.getSurvivalTime();
+    const hour = time.hour + time.minute / 60;
+    this._skyManager.updateSunPosition(hour);
+    this._skyManager.updateMoonPosition(hour);
+    this.updateCloudEffect();
+    // this._skyManager.updateRain();
+  };
+
+  ///////////////////////////////////////////////////////////////////////////////////////////
+  // 天候の設定 /////////////////////////////////////////////////////////////////////////////
+  //////////////////////////////////////////////////////////////////////////////////////////
+
+  class WeatherManager {
+    constructor(skyManager) {
+      this.skyManager = skyManager;
+      this._current = null;
+    }
+
+    update() {
+      const type = $gameSystem.weatherType();
+      if (type !== this._current) {
+        this._current = type;
+        this._applyWeather(type);
+      }
+    }
+
+    _applyWeather(type) {
+      if (type === 'clear') {
+        this.skyManager.setCloudVisibility(false);
+      } else if (type === 'fine') {
+        this.skyManager.setCloudVisibility(true);
+      } else if (type === 'cloudy') {
+        this.skyManager.setCloudySky();                // 曇り空の生成
+      }
+    }
+
+
+    setCloudVisibility(visible) {
+      if (visible && !this.clouds) this._createLightClouds();
+      if (!visible && this.clouds) {
+        this.scene.remove(this.clouds);
+        this.clouds = null;
+      }
+    }
+
+    setRainActive(active) {
+      if (active && !this._rain) this._createRainEffect();
+      if (!active && this._rain) {
+        this.scene.remove(this._rain);
+        this._rain = null;
+      }
+    }
+
   }
 
-  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  geometry.setAttribute('phase', new THREE.BufferAttribute(phases, 1));
 
-  const material = new THREE.PointsMaterial({
-    color: 0x88ff88,
-    size: 0.2,
-    transparent: true,
-    opacity: 0.8,
-    depthWrite: false,
-  });
+  // 初期化：createSkyManager の直後に追加
+  Scene_Map.prototype.createWeatherManager = function () {
+    this._weatherManager = new WeatherManager(this._threeScene);
+    this._weatherManager.setWeather($gameSystem.weatherType()); // Game_Systemに保存された天気
+  };
 
-  this.fireflies = new THREE.Points(geometry, material);
-  this.scene.add(this.fireflies);
+  // 更新：updateSkyManager の後に呼び出し
+  Scene_Map.prototype.updateWeatherManager = function () {
+    if (this._weatherManager) {
+      this._weatherManager.update();
+    }
+  };
 
-  console.log("[SkyManager] ホタルエフェクト初期化完了");
-}
+  Game_System.prototype.weatherType = function () {
+    return this._weatherType || 'clear';
+  };
 
-updateFireflyEffect() {
-  if (!this.fireflies) return;
+  Game_System.prototype.setWeatherType = function (type) {
+    this._weatherType = type;
+  };
 
-  const time = performance.now() * 0.001;
-  const positions = this.fireflies.geometry.attributes.position.array;
-  const phases = this.fireflies.geometry.attributes.phase.array;
+  Game_System.prototype.decideRandomWeather = function () {
+    const rand = Math.random();
+    let weather;
+    if (rand < 0.2) weather = 'clear';
+    else if (rand < 0.2) weather = 'fine';
+    else if (rand < 0.8) weather = 'cloudy'; // 曇り20%
+    this.setWeatherType(weather);
 
-  for (let i = 0; i < phases.length; i++) {
-    const idx = i * 3;
-    positions[idx + 1] += Math.sin(time + phases[i]) * 0.005;
-    positions[idx + 0] += Math.cos(time + phases[i]) * 0.002;
-    positions[idx + 2] += Math.sin(time * 0.5 + phases[i]) * 0.002;
+    console.log(`[Weather] 天候決定: ${weather}`);
+  };
+
+
+  ///////////////////////////////////////////////////////////////////////////////////////////
+  // 空のまとめ /////////////////////////////////////////////////////////////////////////////
+  //////////////////////////////////////////////////////////////////////////////////////////
+
+  class SkyController {
+    constructor(scene, renderer) {
+      this.scene = scene;
+      this.renderer = renderer;
+      this._skyManager = new SkyManager(scene, renderer);
+      this._weatherManager = new WeatherManager(this._skyManager);
+    }
+
+    initialize() {
+      $gameSystem.decideRandomWeather();       // ← ★先に天候を決定！
+
+      this._skyManager.initialize();           // ← 雲はまだ出さない
+      this._weatherManager.update();           // ← 状態に応じて雲だけ出す
+    }
+
+
+    update() {
+      const time = $gameSystem.getSurvivalTime();
+      const hour = time.hour + time.minute / 60;
+      this._skyManager.updateSunPosition(hour);
+      this._skyManager.updateMoonPosition(hour);
+      this._weatherManager.update(); // 状態が変わっていれば反映
+    }
   }
 
-  const flicker = 0.5 + Math.sin(time * 2) * 0.3;
-  this.fireflies.material.opacity = flicker;
+  // 初期化
+  Scene_Map.prototype.createSkyController = function () {
+    this._skyController = new SkyController(this._threeScene, this._threeRenderer);
+    this._skyController.initialize();
+  };
 
-  this.fireflies.geometry.attributes.position.needsUpdate = true;
-}
-}
+  // 更新
+  Scene_Map.prototype.updateSkyController = function () {
+    if (this._skyController) {
+      this._skyController.update();
+    }
+  };
 
-// グローバル登録：Scene_Mapから使えるように
-Scene_Map.prototype.createSkyManager = function () {
-  this._skyManager = new SkyManager(this._threeScene, this._threeRenderer);
-  this._skyManager.initialize();
-  // this._skyManager.initRainEffect();
-};
 
-Scene_Map.prototype.updateSkyManager = function () {
-  if (!this._skyManager) return;
-  const time = $gameSystem.getSurvivalTime();
-  const hour = time.hour + time.minute / 60;
-  this._skyManager.updateSunPosition(hour);
-  this._skyManager.updateMoonPosition(hour);
-  // this._skyManager.updateRain();
-};
-
-///////////////////////////////////////////////////////////////////////////////////////////
-// コンパスの設定 //////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////////////////
+  // コンパスの設定 //////////////////////////////////////////////////////////////////////////
+  //////////////////////////////////////////////////////////////////////////////////////////
 
 
 class Direction3D {

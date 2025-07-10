@@ -18,8 +18,6 @@ class GroundSurface {
         repeat = 5,
         positionY = 0
     }) {
-        console.log("[GroundSurface] 初期化: size =", width, "x", height, "segments =", segmentsX, "x", segmentsZ);
-
         this.width = width;
         this.height = height;
         this.segmentsX = segmentsX;
@@ -32,11 +30,9 @@ class GroundSurface {
     }
 
     _createGroundMesh() {
-        console.log("[GroundSurface] テクスチャ読み込み:", this.texturePath);
         const geometry = new THREE.PlaneGeometry(this.width, this.height, this.segmentsX, this.segmentsZ);
 
         const texture = new THREE.TextureLoader().load(this.texturePath, () => {
-            console.log("[GroundSurface] テクスチャロード成功");
         }, undefined, (err) => {
             console.error("[GroundSurface] テクスチャロード失敗:", err);
         });
@@ -53,19 +49,15 @@ class GroundSurface {
         mesh.rotation.x = -Math.PI / 2;
         mesh.position.y = this.positionY;
         mesh.userData = { type: 'ground' };
-
-        console.log("[GroundSurface] メッシュ作成完了");
         return mesh;
     }
 
     addToScene(scene) {
         scene.add(this.mesh);
-        console.log("[GroundSurface] シーンに追加完了");
     }
 
     applyHeightMap(heightFunction) {
     const vertices = this.mesh.geometry.attributes.position;
-    console.log("[GroundSurface] 高さ変形開始: 頂点数 =", vertices.count);
 
     let maxY = -Infinity, minY = Infinity;
 
@@ -81,41 +73,9 @@ class GroundSurface {
 
     vertices.needsUpdate = true;
     this.mesh.geometry.computeVertexNormals();
-
-    console.log("[GroundSurface] 高さ適用完了: minY =", minY, "maxY =", maxY);
 }
 
 }
-
-// Scene_Map.prototype.createMountain = function () {
-//     const size = 50;
-//     const segments = 32;
-
-//     const ground = new GroundSurface({
-//         width: size,
-//         height: size,
-//         segmentsX: segments,
-//         segmentsZ: segments,
-//         texturePath: '3D/textures/forrest_ground_01_diff_4k.jpg',
-//         repeat: 10,
-//         positionY: 0
-//     });
-
-//     // 修正後の高さマップ（中心考慮）
-//     const halfWidth = size / 2;
-//     const halfHeight = size / 2;
-
-//     ground.applyHeightMap((x, z) => {
-//         const scale = 0.3;
-//         const px = x - halfWidth;
-//         const pz = z - halfHeight;
-//         return Math.sin(px * scale) * Math.cos(pz * scale) * 4;
-//     });
-
-//     ground.addToScene(this._threeScene);
-//     this._ground = ground;
-// };
-
 
 // ノーマルマップ無し
 Scene_Map.prototype.createGround = function () {

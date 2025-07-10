@@ -58,8 +58,6 @@
     this._threeScene.add(ambientLight, directionalLight);
   };
 
-
-
   const _Scene_Map_create = Scene_Map.prototype.create;
   Scene_Map.prototype.create = async function () {
     _Scene_Map_create.call(this);
@@ -72,7 +70,7 @@
 
       this.playerCreate();
 
-      this.createSkyManager();
+      this.createSkyController();
       this.createGround();
 
       this.createBranch(2, 2);
@@ -90,9 +88,6 @@
       // コンパス用
       this._createDirectionDisplay();
 
-
-
-
     }
   };
 
@@ -104,20 +99,12 @@
       this._threeRenderer.render(this._threeScene, this._threeCamera);
     }
 
-    if ($gameSwitches.value(1) && !this._skyInitialized && this._threeScene && this._threeRenderer) {
-      // this.initSkyShader();
-      // this.initRainEffect();    // 雨初期化
-      // this.initSnowEffect();    // 雪初期化
-      // this.initFireEffect();    // 炎初期化
-      // this.initStarEffect();    // 星初期化
-      // this.initFireflyEffect(); // 蛍初期化
-      // this.initCloudEffect();   // 雲初期化
-
-      this._skyInitialized = true;
+    // if ($gameSwitches.value(1) && !this._skyInitialized && this._threeScene && this._threeRenderer) {
+    //   this._skyInitialized = true;
       
-    }
+    // }
 
-    this.updateSkyManager();
+    this.updateSkyController();
 
     this.playerUpdate(); // ← FPSの移動＆スタミナ減少
 
@@ -130,15 +117,6 @@
       const forwardVec = this._cameraController.getForwardVector();
       this._updateDirectionDisplay(forwardVec);
     }
-
-
-
-    // if(this._rain) this.updateRain();    // 雨更新
-    // if(this._snow) this.updateSnow();    // 雪更新
-    // if(this._fire) this.updateFire();    // 炎更新
-    // if(this._stars) this.updateStar();   // 星更新
-    // if(this._fireflies) this.updateFirefly(); // 蛍更新
-    // if(this._clouds) this.updateCloud(); // 雲更新
   };
 
   const _Scene_Map_terminate = Scene_Map.prototype.terminate;

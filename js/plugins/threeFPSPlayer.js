@@ -144,7 +144,6 @@ getCurrentMoveSpeed() {
 
     // 疲労中は完全停止
     if (this._isFatigued) {
-        console.log('[Move] 疲労中のため移動不可');
         return 0.0;
     }
 
@@ -154,7 +153,6 @@ getCurrentMoveSpeed() {
         return crouchSpeed;
     } else if (isDashing) {
         if (actor.stamina() < 30) {
-            console.log('[Move] スタミナ低下 → ダッシュ弱体化');
             return lowStaminaDashSpeed;
         }
         return dashSpeed;
@@ -176,7 +174,6 @@ _updateStamina() {
 
         if (this._fatigueTimer <= 0) {
             this._isFatigued = false;
-            console.log('[Stamina] 疲労解除');
         }
 
         return; // 疲労中は処理停止
@@ -186,12 +183,10 @@ _updateStamina() {
         const stamina = actor.stamina();
         const next = Math.max(0, stamina - 0.5);
         actor.setStamina(next);
-        console.log(`[Stamina] 減少: ${next}`);
 
         if (next === 0) {
             this._isFatigued = true;
             this._fatigueTimer = 120; // 約2秒（1フレーム約16ms想定）
-            console.log('[Stamina] 疲労状態に移行');
         }
 
     } else {
@@ -199,7 +194,6 @@ _updateStamina() {
         if (stamina < 100 && !this._isFatigued) {
             const next = stamina + 0.2;
             actor.setStamina(next);
-            console.log(`[Stamina] 回復: ${next}`);
         }
     }
 

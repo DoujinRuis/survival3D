@@ -68,6 +68,8 @@ Scene_Map.prototype._updateGameTime = function () {
       if (timeData.hour >= 24) {
         timeData.hour = 0;
         timeData.day++;
+        // ★ 天候を再決定
+        $gameSystem.decideRandomWeather();
       }
     }
   } else {
