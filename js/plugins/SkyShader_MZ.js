@@ -28,6 +28,10 @@ class SkyManager {
       return;
     }
 
+    // 月の作成
+    this.createMoon();
+    console.log("▶ createMoon 呼び出し");
+
     // Sky作成
     this.sky = new THREE.Sky();
     this.sky.scale.setScalar(450000);
@@ -78,20 +82,37 @@ updateSunPosition(hour) {
   this.scene.environment = envMap;
 }
 
-updateMoonPosition(hour) {
-  if (!this._moon) return;
+  createMoon() {
+    const textureLoader = new THREE.TextureLoader();
+    const moonTexture = textureLoader.load("3D/image/fullMoon.png"); // ← テクスチャ準備要
 
-  // 太陽の反対 → 時間を反転： (hour + 12) % 24
-  const moonHour = (hour + 12) % 24;
+    const material = new THREE.SpriteMaterial({
+      map: moonTexture,
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.6,
+      depthWrite: false
+    });
 
-  const theta = THREE.MathUtils.degToRad((moonHour / 24) * 360); // 方位
-  const phi = THREE.MathUtils.degToRad(90 - Math.cos((moonHour - 12) / 12 * Math.PI) * 90); // 高度
+    this._moon = new THREE.Sprite(material);
+    this._moon.scale.set(125, 125, 1); // 固定サイズ
 
-  const pos = new THREE.Vector3();
-  pos.setFromSphericalCoords(1, phi, theta);
-  this._moon.position.copy(pos.multiplyScalar(450000)); // スカイと同じ半径
-}
+    this.scene.add(this._moon);
+  }
 
+  updateMoonPosition(hour) {
+    if (!this._moon) return;
+
+    const moonHour = (hour + 12) % 24;
+
+    const theta = THREE.MathUtils.degToRad((moonHour / 24) * 360);
+    const phi = THREE.MathUtils.degToRad(90 - Math.cos((moonHour - 12) / 12 * Math.PI) * 90);
+
+    const pos = new THREE.Vector3();
+    pos.setFromSphericalCoords(1, phi, theta);
+
+    this._moon.position.copy(pos.multiplyScalar(1000));
+  }
 
 getSmoothExposure(hour) {
   // 朝（4:00〜6:00） 0.05 → 0.6（以前より抑えめ）
@@ -112,7 +133,7 @@ getSmoothExposure(hour) {
   }
 
   // 夜間（18:00〜4:00）暗く固定
-  return 0.05;
+  return 0.2;
 }
 
 _lerp(a, b, t) {
@@ -328,7 +349,9 @@ Scene_Map.prototype.updateSkyManager = function () {
   // this._skyManager.updateRain();
 };
 
-
+///////////////////////////////////////////////////////////////////////////////////////////
+// コンパスの設定 //////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////
 
 
 class Direction3D {
