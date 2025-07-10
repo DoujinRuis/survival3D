@@ -19,6 +19,7 @@ Game_System.prototype.initialize = function() {
         hour: 6,
         minute: 0,
         second: 0,
+        day: 1,
         accumulator: 0
     };
 };
@@ -66,6 +67,7 @@ Scene_Map.prototype._updateGameTime = function () {
       timeData.hour += 1; /// 6;
       if (timeData.hour >= 24) {
         timeData.hour = 0;
+        timeData.day++;
       }
     }
   } else {
@@ -123,14 +125,18 @@ Scene_Map.prototype._updateGameTime = function () {
 
 Scene_Map.prototype._refreshTimeDisplay = function () {
   if (this._timeElement) {
-    const timeData = $gameSystem.getSurvivalTime();
+  const timeData = $gameSystem.getSurvivalTime();
 
-    const hh = String(Math.floor(timeData.hour)).padStart(2, '0');
-    const mm = String(Math.floor(timeData.minute)).padStart(2, '0');
-    const ss = String(Math.floor(timeData.second)).padStart(2, '0');
+  const hh = String(Math.floor(timeData.hour)).padStart(2, '0');
+  const mm = String(Math.floor(timeData.minute)).padStart(2, '0');
+  const ss = String(Math.floor(timeData.second)).padStart(2, '0');
+  const dd = timeData.day;
+  const dateStr = `${dd}日目`; // 必要なら年月を追加
+
 
     this._timeElement.innerHTML = `
       デバッグ用<br>
+      <strong>${dateStr}</strong><br>
       時刻: ${hh}:${mm}:${ss}<br><br>
       <strong>操作説明</strong><br>
       WASDで移動<br>
