@@ -78,6 +78,21 @@ updateSunPosition(hour) {
   this.scene.environment = envMap;
 }
 
+updateMoonPosition(hour) {
+  if (!this._moon) return;
+
+  // 太陽の反対 → 時間を反転： (hour + 12) % 24
+  const moonHour = (hour + 12) % 24;
+
+  const theta = THREE.MathUtils.degToRad((moonHour / 24) * 360); // 方位
+  const phi = THREE.MathUtils.degToRad(90 - Math.cos((moonHour - 12) / 12 * Math.PI) * 90); // 高度
+
+  const pos = new THREE.Vector3();
+  pos.setFromSphericalCoords(1, phi, theta);
+  this._moon.position.copy(pos.multiplyScalar(450000)); // スカイと同じ半径
+}
+
+
 getSmoothExposure(hour) {
   // 朝（4:00〜6:00） 0.05 → 0.6（以前より抑えめ）
   if (hour >= 4 && hour < 6) {
@@ -100,6 +115,9 @@ getSmoothExposure(hour) {
   return 0.05;
 }
 
+_lerp(a, b, t) {
+  return a + (b - a) * t;
+}
 
 // 雲の初期化メソッド
 initCloudEffect({
@@ -306,6 +324,7 @@ Scene_Map.prototype.updateSkyManager = function () {
   const time = $gameSystem.getSurvivalTime();
   const hour = time.hour + time.minute / 60;
   this._skyManager.updateSunPosition(hour);
+  this._skyManager.updateMoonPosition(hour);
   // this._skyManager.updateRain();
 };
 

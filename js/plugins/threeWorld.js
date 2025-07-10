@@ -53,7 +53,7 @@ Scene_Map.prototype._createTimeDisplay = function() {
 
 
 Scene_Map.prototype._updateGameTime = function () {
-  const isDebugFastTime = false; // デバッグ用
+  const isDebugFastTime = true; // デバッグ用
   const framesPerSecond = 60;
   const timeData = $gameSystem.getSurvivalTime();
 
@@ -63,7 +63,7 @@ Scene_Map.prototype._updateGameTime = function () {
     // デバッグ：1秒で1時間進む
     if (timeData.accumulator >= framesPerSecond) {
       timeData.accumulator = 0;
-      timeData.hour++;
+      timeData.hour += 1; /// 6;
       if (timeData.hour >= 24) {
         timeData.hour = 0;
       }
@@ -121,28 +121,33 @@ Scene_Map.prototype._updateGameTime = function () {
   this._refreshTimeDisplay();
 };
 
-Scene_Map.prototype._refreshTimeDisplay = function() {
-    if (this._timeElement) {
-        const timeData = $gameSystem.getSurvivalTime();
-        const hh = String(timeData.hour).padStart(2, '0');
-        const mm = String(timeData.minute).padStart(2, '0');
-        const ss = String(timeData.second).padStart(2, '0');
+Scene_Map.prototype._refreshTimeDisplay = function () {
+  if (this._timeElement) {
+    const timeData = $gameSystem.getSurvivalTime();
 
-        this._timeElement.innerHTML = `
-            デバッグ用<br>
-            時刻: ${hh}:${mm}:${ss}<br><br>
-            <strong>操作説明</strong><br>
-            WASDで移動<br>
-            Shiftでダッシュ<br>
-            Spaceでジャンプ<br>
-            キャンセルでしゃがむ<br>
-            Tabでインベントリ<br>
-            EscとTabでポイントロック解除
-        `;
+    const hh = String(Math.floor(timeData.hour)).padStart(2, '0');
+    const mm = String(Math.floor(timeData.minute)).padStart(2, '0');
+    const ss = String(Math.floor(timeData.second)).padStart(2, '0');
 
-        // ⭐ ここを追加！
-        this._timeElement.style.color = 'black';
-    }
+    this._timeElement.innerHTML = `
+      デバッグ用<br>
+      時刻: ${hh}:${mm}:${ss}<br><br>
+      <strong>操作説明</strong><br>
+      WASDで移動<br>
+      Shiftでダッシュ<br>
+      Spaceでジャンプ<br>
+      キャンセルでしゃがむ<br>
+      Tabでインベントリ<br>
+      EscとTabでポイントロック解除
+    `;
+
+    // 夜でも見えるように明るくスタイル調整
+    this._timeElement.style.color = '#ffffff';
+    this._timeElement.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+    this._timeElement.style.padding = '6px';
+    this._timeElement.style.borderRadius = '8px';
+    this._timeElement.style.textShadow = '0 0 4px #000';
+  }
 };
 
 
