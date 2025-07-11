@@ -72,20 +72,7 @@
 
       this.createSkyController();
       this.createGround();
-
-      // this.createBranch(2, 2);
-      // this.createAcorn(3, 3);
-      // this.createKuromatu(4, 4);
-
-
-      // モデル読み込みとかは別にする
-
       this.hudCreate();
-
-      // コンパス用
-      this._createDirectionDisplay();
-
-      this.createCrosshair();
     }
   };
 
@@ -102,12 +89,6 @@
     this.playerUpdate(); // ← FPSの移動＆スタミナ減少
 
     this.hudUpdate();
-
-    // カメラの方向ベクトル取得して表示更新
-    if (this._cameraController && this._directionElement) {
-      const forwardVec = this._cameraController.getForwardVector();
-      this._updateDirectionDisplay(forwardVec);
-    }
   };
 
   const _Scene_Map_terminate = Scene_Map.prototype.terminate;
@@ -121,7 +102,21 @@
     if (document.exitPointerLock) document.exitPointerLock();
   };
 
+  ///////////////////////////////////////////////////////////////////////////////////////////
+  // その他の設定 ///////////////////////////////////////////////////////////////////////////
+  //////////////////////////////////////////////////////////////////////////////////////////
 
+  // デフォルトのメニュー画面無効化
+  const _Scene_Map_callMenu = Scene_Map.prototype.callMenu;
+  Scene_Map.prototype.callMenu = function() {
+      if ($gameSwitches.value(1)) {
+          // 3Dシーンのときはメニューを無効化する
+          return;
+      }
+
+      // それ以外は通常通り
+      _Scene_Map_callMenu.call(this);
+  };
 
 
 })();

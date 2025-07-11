@@ -350,8 +350,10 @@ Game_Actor_SurvivalExtension.defineProperties();
 
 
 
+
+
+
 class SurvivalHUD {
- // HUDを生成
     static create() {
         if (document.getElementById('hud-overlay')) return;
 
@@ -370,17 +372,18 @@ class SurvivalHUD {
             zIndex: '1000',
         });
 
-        // 各ゲージを追加
-        hud.appendChild(SurvivalHUD.createGaugeRow('HP', 'hp-bar', 'red'));
-        hud.appendChild(SurvivalHUD.createGaugeRow('水分', 'water-bar', 'cyan'));
-        hud.appendChild(SurvivalHUD.createGaugeRow('空腹', 'hunger-bar', 'yellow'));
-        hud.appendChild(SurvivalHUD.createGaugeRow('スタミナ', 'stamina-bar', 'lime'));
-
+        hud.appendChild(this.createGaugeRow('HP', 'hp-bar', 'red'));
+        hud.appendChild(this.createGaugeRow('水分', 'water-bar', 'cyan'));
+        hud.appendChild(this.createGaugeRow('空腹', 'hunger-bar', 'yellow'));
+        hud.appendChild(this.createGaugeRow('スタミナ', 'stamina-bar', 'lime'));
 
         document.body.appendChild(hud);
+
+        this.createCompass();
+        this.createPointer();
+        console.log( "SurvivalHUD.create" ,  );
     }
 
-    // ゲージの行を生成
     static createGaugeRow(labelText, barId, barColor) {
         const row = document.createElement('div');
         row.style.marginBottom = '8px';
@@ -390,58 +393,115 @@ class SurvivalHUD {
         row.appendChild(label);
 
         const barBackground = document.createElement('div');
-        barBackground.style.background = '#333';
-        barBackground.style.width = '100%';
-        barBackground.style.height = '10px';
-        barBackground.style.borderRadius = '5px';
-        barBackground.style.overflow = 'hidden';
-        barBackground.style.marginTop = '4px';
+        Object.assign(barBackground.style, {
+            background: '#333',
+            width: '100%',
+            height: '10px',
+            borderRadius: '5px',
+            overflow: 'hidden',
+            marginTop: '4px',
+        });
 
         const bar = document.createElement('div');
         bar.id = barId;
-        bar.style.width = '100%'; // 初期化
-        bar.style.height = '100%';
-        bar.style.background = barColor;
+        Object.assign(bar.style, {
+            width: '100%',
+            height: '100%',
+            background: barColor,
+        });
 
         barBackground.appendChild(bar);
         row.appendChild(barBackground);
-
         return row;
     }
 
-static update() {
-    const hud = document.getElementById('hud-overlay');
-    if (!hud) return;
+    static createCompass() {
+        const compass = document.createElement('div');
+        compass.id = 'hud-compass';
+        Object.assign(compass.style, {
+            position: 'absolute',
+            top: '10px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            width: '200px',
+            height: '20px',
+            background: 'rgba(0, 0, 0, 0.6)',
+            textAlign: 'center',
+            color: 'white',
+            fontSize: '14px',
+            fontWeight: 'bold',
+            zIndex: '1000',
+            borderRadius: '6px',
+        });
+        compass.innerText = '方位: N';
+        document.body.appendChild(compass);
+    }
 
-    const actor = $gameParty.leader();
-    this.updateBarSmoothly('hp-bar', actor.survivalHp());
-    this.updateBarSmoothly('water-bar', actor.water());
-    this.updateBarSmoothly('hunger-bar', actor.hunger());
-    this.updateBarSmoothly('stamina-bar', actor.stamina());
-}
+    static updateCompass(forwardVec) {
+        const compass = document.getElementById('hud-compass');
+        if (!compass || !forwardVec) return;
 
-// HUDのゲージバー（HP・スタミナなど）を滑らかに更新する処理
-static updateBarSmoothly(barId, targetValue) {
-    const bar = document.getElementById(barId);
-    if (!bar) return;
+        const angle = Math.atan2(forwardVec.x, forwardVec.z); // Y軸回転
+        const deg = (angle * 180) / Math.PI;
+        const compassDir = this._directionFromAngle(deg);
+        compass.innerText = `方位: ${compassDir}`;
+    }
 
-    // 実際に表示されている幅を取得
-    const computedWidth = parseFloat(window.getComputedStyle(bar).width);
-    const parentWidth = parseFloat(window.getComputedStyle(bar.parentElement).width);
-    const currentPercent = (computedWidth / parentWidth) * 100;
+    static _directionFromAngle(deg) {
+        const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+        const idx = Math.round(((deg + 360) % 360) / 45) % 8;
+        return dirs[idx];
+    }
 
-    const newPercent = currentPercent + (targetValue - currentPercent) * 0.1;
+    static createPointer() {
+        const crosshair = document.createElement('div');
+        crosshair.id = 'hud-crosshair';
+        Object.assign(crosshair.style, {
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            width: '8px',
+            height: '8px',
+            marginLeft: '-4px',
+            marginTop: '-4px',
+            backgroundColor: 'white',
+            borderRadius: '50%',
+            zIndex: '1000',
+        });
+        document.body.appendChild(crosshair);
+    }
 
-    bar.style.width = `${Math.max(0, Math.min(100, newPercent)).toFixed(1)}%`;
-}
+    static update() {
+        const hud = document.getElementById('hud-overlay');
+        if (!hud) return;
 
+        const actor = $gameParty.leader();
+        this.updateBarSmoothly('hp-bar', actor.survivalHp());
+        this.updateBarSmoothly('water-bar', actor.water());
+        this.updateBarSmoothly('hunger-bar', actor.hunger());
+        this.updateBarSmoothly('stamina-bar', actor.stamina());
+    }
 
+    static updateBarSmoothly(barId, targetValue) {
+        const bar = document.getElementById(barId);
+        if (!bar) return;
+
+        const computedWidth = parseFloat(window.getComputedStyle(bar).width);
+        const parentWidth = parseFloat(window.getComputedStyle(bar.parentElement).width);
+        const currentPercent = (computedWidth / parentWidth) * 100;
+        const newPercent = currentPercent + (targetValue - currentPercent) * 0.1;
+
+        bar.style.width = `${Math.max(0, Math.min(100, newPercent)).toFixed(1)}%`;
+    }
 
     static remove() {
-        const hud = document.getElementById('hud-overlay');
-        if (hud) hud.remove();
+        ['hud-overlay', 'hud-compass', 'hud-crosshair'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.remove();
+        });
     }
 }
+
 
 Scene_Map.prototype.hudCreate = function () {
     SurvivalHUD.create();
@@ -449,7 +509,13 @@ Scene_Map.prototype.hudCreate = function () {
 
 Scene_Map.prototype.hudUpdate = function () {
     SurvivalHUD.update();
+
+    if (this._cameraController) {
+        const forwardVec = this._cameraController.getForwardVector();
+        SurvivalHUD.updateCompass(forwardVec);
+    }
 };
+
 
 Scene_Map.prototype.hudRemove = function () {
     SurvivalHUD.remove();

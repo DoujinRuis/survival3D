@@ -23,23 +23,23 @@
   }
 
   _initTimeDisplay() {
-    let div = document.getElementById('time-display');
-    if (!div) {
-      div = document.createElement('div');
-      div.id = 'time-display';
-      Object.assign(div.style, {
-        position: 'absolute',
-        top: '10px',
-        left: '10px',
-        color: '#ffffff',
-        fontSize: '18px',
-        fontFamily: 'Arial, sans-serif',
-        textShadow: '0 0 3px #000',
-        zIndex: 20
-      });
-      document.body.appendChild(div);
-    }
-    this._timeElement = div;
+      let div = document.getElementById('time-display');
+      if (!div) {
+          div = document.createElement('div');
+          div.id = 'time-display';
+          Object.assign(div.style, {
+              position: 'absolute',
+              top: '10px',
+              left: '10px',
+              color: '#ffffff',
+              fontSize: '18px',
+              fontFamily: 'Arial, sans-serif',
+              textShadow: '0 0 3px #000',
+              zIndex: 20
+          });
+          document.body.appendChild(div);
+      }
+      this._timeElement = div;
   }
 
   update() {
@@ -65,23 +65,26 @@
     }
 
     this._refreshDisplay();
+
   }
 
   _refreshDisplay() {
-    const t = this._data;
-    const hh = String(t.hour).padStart(2, '0');
-    const mm = String(t.minute).padStart(2, '0');
-    const ss = String(t.second).padStart(2, '0');
-    const dd = t.day;
+      const t = this._data;
+      const hh = String(t.hour).padStart(2, '0');
+      const mm = String(t.minute).padStart(2, '0');
+      const ss = String(t.second).padStart(2, '0');
+      const dd = t.day;
 
-    this._timeElement.innerHTML = `
-      <strong>${dd}日目</strong><br>
-      時刻: ${hh}:${mm}:${ss}<br><br>
-      <strong>操作説明</strong><br>
-      WASDで移動 / Shiftでダッシュ<br>
-      Spaceでジャンプ / Tabでインベントリ<br>
-      EscとTabでロック解除
-    `;
+      if (this._timeElement) {
+          this._timeElement.innerHTML = `
+              <strong>${dd}日目</strong><br>
+              時刻: ${hh}:${mm}:${ss}<br><br>
+              <strong>操作説明</strong><br>
+              WASDで移動 / Shiftでダッシュ<br>
+              Spaceでジャンプ / Tabでインベントリ<br>
+              EscとTabでロック解除
+          `;
+      }
   }
 
   get hour() {
@@ -95,6 +98,10 @@
     }
   }
 }
+
+  Scene_Map.prototype.createTimeManager = function () {
+    this._timeManager = new TimeManager(this._threeScene, this._threeRenderer);
+  };
 
   ///////////////////////////////////////////////////////////////////////////////////////////
   // 空の設定 /////////////////////////////////////////////////////////////////////////////
@@ -661,99 +668,9 @@ Game_System.prototype.decideRandomWeather = function () {
   };
 
 
-  ///////////////////////////////////////////////////////////////////////////////////////////
-  // コンパスの設定 //////////////////////////////////////////////////////////////////////////
-  //////////////////////////////////////////////////////////////////////////////////////////
 
 
-class Direction3D {
-  // Z+ 北 / Z- 南 / X+ 東 / X- 西
-  static NORTH = new THREE.Vector3(0, 0, 1);
-  static SOUTH = new THREE.Vector3(0, 0, -1);
-  static EAST = new THREE.Vector3(1, 0, 0);
-  static WEST = new THREE.Vector3(-1, 0, 0);
 
-  // 任意の角度から方向ベクトルを取得（度）
-  static fromAzimuth(deg) {
-    const rad = THREE.MathUtils.degToRad(deg);
-    return new THREE.Vector3(Math.sin(rad), 0, Math.cos(rad)).normalize();
-  }
-
-  // ベクトルから最も近い方角名を取得（誤差±45度）
-  static getDirectionName(vec3) {
-    const angle = Math.atan2(vec3.x, vec3.z); // atan2(x, z)
-    const deg = (THREE.MathUtils.radToDeg(angle) + 360) % 360;
-
-    if (deg >= 45 && deg < 135) return "EAST";
-    if (deg >= 135 && deg < 225) return "SOUTH";
-    if (deg >= 225 && deg < 315) return "WEST";
-    return "NORTH";
-  }
-}
-
-Scene_Map.prototype._createDirectionDisplay = function () {
-  if (document.getElementById('direction-display')) return;
-
-  const div = document.createElement('div');
-  div.id = 'direction-display';
-  div.style.position = 'absolute';
-  div.style.top = '10px';
-  div.style.right = '10px';
-  div.style.color = 'white';
-  div.style.fontSize = '20px';
-  div.style.fontFamily = 'Arial, sans-serif';
-  div.style.textShadow = '0 0 3px black';
-  div.style.zIndex = 100;
-  div.innerText = '方角: NORTH';
-  document.body.appendChild(div);
-
-  this._directionElement = div;
-};
-
-Scene_Map.prototype._updateDirectionDisplay = function (vec3) {
-  if (!this._directionElement) return;
-  const dir = Direction3D.getDirectionName(vec3);
-  this._directionElement.innerText = `方角: ${dir}`;
-};
-
-Scene_Map.prototype._removeDirectionDisplay = function () {
-  if (this._directionElement) {
-    this._directionElement.remove();
-    this._directionElement = null;
-  }
-};
-
-  ///////////////////////////////////////////////////////////////////////////////////////////
-  // その他の設定 ///////////////////////////////////////////////////////////////////////////
-  //////////////////////////////////////////////////////////////////////////////////////////
-
-  // デフォルトのメニュー画面無効化
-  const _Scene_Map_callMenu = Scene_Map.prototype.callMenu;
-  Scene_Map.prototype.callMenu = function() {
-      if ($gameSwitches.value(1)) {
-          // 3Dシーンのときはメニューを無効化する
-          return;
-      }
-
-      // それ以外は通常通り
-      _Scene_Map_callMenu.call(this);
-  };
-
-    Scene_Map.prototype.createCrosshair = function() {
-    const crosshair = document.createElement('div');
-    crosshair.id = 'crosshair';
-    crosshair.style.position = 'absolute';
-    crosshair.style.top = '50%';
-    crosshair.style.left = '50%';
-    crosshair.style.width = '8px';
-    crosshair.style.height = '8px';
-    crosshair.style.marginLeft = '-4px'; // 中央に合わせる
-    crosshair.style.marginTop = '-4px';  // 中央に合わせる
-    crosshair.style.backgroundColor = 'white';
-    crosshair.style.borderRadius = '50%';
-    crosshair.style.zIndex = '20';
-    document.body.appendChild(crosshair);
-};
 
 })();
 
