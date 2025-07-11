@@ -601,7 +601,7 @@ updateSunPosition(hour) {
 
 Game_System.prototype.decideRandomWeather = function () {
   // ⭐ デバッグスイッチと変数をチェック
-  const isDebug = true; // デバッグスイッチ ON のとき
+  const isDebug = false; // デバッグスイッチ ON のとき
   const override = 'rain'; // 手動で天候文字列を代入
 
   const valid = ['clear', 'fine', 'cloudy', 'rain'];

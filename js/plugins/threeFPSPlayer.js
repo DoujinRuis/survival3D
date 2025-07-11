@@ -48,7 +48,8 @@ class FPSCameraController {
         Input.keyMapper[83] = 's'; // S
         Input.keyMapper[68] = 'd'; // D
         Input.keyMapper[32] = 'space';
-        Input.keyMapper[16] = 'shift'; // ← Shiftキー
+        Input.keyMapper[16] = 'shift';
+        Input.keyMapper[69] = 'e';
 
 
         document.addEventListener('mousemove', (event) => {
@@ -131,8 +132,30 @@ class FPSCameraController {
     this._updateCrouch();
     this._interpolateCameraHeight();
     this._updateStamina();
+    this._updateTerrainFollow();
+
+
 
 }
+
+_shouldFollowTerrain() {
+    return !this._isJumping && !this._isCrouching;
+}
+
+_updateTerrainFollow() {
+    if (!$gameMap || !SceneManager._scene._ground) return;
+    if (!this._shouldFollowTerrain()) return;
+
+    const ground = SceneManager._scene._ground;
+    const pos = this.camera.position;
+    const terrainY = ground.getHeightAt(pos.x, pos.z);
+    const targetY = terrainY + 1.6;
+    const currentY = this.camera.position.y;
+    const dy = targetY - currentY;
+
+    this.camera.position.y += dy * 0.2; // ← 滑らかに補間
+}
+
 
 getCurrentMoveSpeed() {
     const baseSpeed = this.moveSpeed;
@@ -269,15 +292,213 @@ _updateStamina() {
 
 }
 
+
+
+
+class DiggingController {
+    constructor(sceneMap) {
+        this.sceneMap = sceneMap;
+        this.camera = sceneMap._threeCamera;
+        this.scene = sceneMap._threeScene;
+
+        this._raycaster = new THREE.Raycaster();
+
+        this._createUI();
+        this._raycaster.camera = this.camera;
+        this._isPromptVisible = false;
+
+
+    }
+
+    _createUI() {
+        const prompt = document.createElement('div');
+        prompt.id = 'dig-prompt';
+        prompt.innerText = 'Eキーで穴を掘る';
+        Object.assign(prompt.style, {
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            color: 'white',
+            fontSize: '20px',
+            backgroundColor: 'rgba(0,0,0,0.6)',
+            padding: '8px 16px',
+            borderRadius: '6px',
+            zIndex: '1000',
+            display: 'none'
+        });
+        document.body.appendChild(prompt);
+        this._promptElement = prompt;
+
+        Input.keyMapper[69] = 'e'; // Eキー
+    }
+
+    // update() {
+    //     if (!this.camera || !this.scene || !this._promptElement) return;
+
+    //     const dir = new THREE.Vector3();
+    //     this.camera.getWorldDirection(dir);
+
+    //     // ✅ プレイヤーが真下を向いているか確認
+    //     const threshold = 0.9; // -1 に近いほど真下
+    //     const lookingDown = dir.y < -threshold;
+
+    //     if (!lookingDown) {
+    //         this._promptElement.style.display = 'none';
+    //         return;
+    //     }
+
+    //     this._raycaster.set(this.camera.position, dir);
+    //     this._raycaster.camera = this.camera;
+
+    //     // ✅ VoxelChunk のメッシュグループを対象にする
+    //     const chunk = SceneManager._scene._chunk;
+    //     if (!chunk) return;
+
+    //     const intersects = this._raycaster.intersectObjects(chunk.meshGroup.children, false);
+    //     const hit = intersects[0];
+
+    //     // if (hit) {
+    //     //     this._promptElement.style.display = 'block';
+
+    //     //     if (Input.isTriggered('e')) {
+    //     //         const pos = hit.point;
+    //     //         chunk.removeBlockAtWorldPosition(pos);
+    //     //     }
+    //     // } else {
+    //     //     this._promptElement.style.display = 'none';
+    //     // }
+
+    //     if (hit) {
+    //         this._promptElement.style.display = 'block';
+    //         this._isPromptVisible = true;
+
+    //         if (this._isPromptVisible && Input.isTriggered('e')) {
+    //             const pos = hit.point;
+    //             SceneManager._scene._chunk.removeBlockAtWorldPosition(pos);
+    //             console.log("UI visible?", this._isPromptVisible);
+
+    //         }
+    //     } else {
+    //         this._promptElement.style.display = 'none';
+    //         this._isPromptVisible = false;
+    //     }
+    // }
+
+    // update() {
+    //     if (!this.camera || !this.scene || !this._promptElement) return;
+
+    //     const dir = new THREE.Vector3();
+    //     this.camera.getWorldDirection(dir);
+
+    //     // ✅ プレイヤーが真下を向いているか確認
+    //     const threshold = 0.9; // -1 に近いほど真下
+    //     const lookingDown = dir.y < -threshold;
+    //     if (!lookingDown) {
+    //         this._promptElement.style.display = 'none';
+    //         return;
+    //     }
+
+    //     this._raycaster.set(this.camera.position, dir);
+    //     this._raycaster.camera = this.camera;
+
+    //     const chunk = SceneManager._scene._chunk;
+    //     if (!chunk) return;
+
+    //     const intersects = this._raycaster.intersectObjects(chunk.meshGroup.children, false);
+    //     if (intersects.length === 0) {
+    //         this._promptElement.style.display = 'none';
+    //         return;
+    //     }
+
+    //     // ✅ 視線がブロックに当たっていて、真下を向いている → UI表示
+    //     const hit = intersects[0];
+    //     this._promptElement.style.display = 'block';
+
+    //     // ✅ UIが出ている今だけ掘削許可
+    //     if (Input.isTriggered('e')) {
+    //         const pos = hit.point;
+    //         chunk.removeBlockAtWorldPosition(pos);
+    //     }
+    // }
+
+    update() {
+    if (!this.camera || !this.scene || !this._promptElement) return;
+
+    const dir = new THREE.Vector3();
+    this.camera.getWorldDirection(dir);
+
+    const threshold = 0.9;
+    const lookingDown = dir.y < -threshold;
+
+    console.log(`[掘削UI] 視線ベクトルY: ${dir.y.toFixed(3)} → 真下判定: ${lookingDown}`);
+
+    if (!lookingDown) {
+        this._promptElement.style.display = 'none';
+        this._isPromptVisible = false;
+        console.log(`[掘削UI] 下を向いていないため非表示`);
+        return;
+    }
+
+    this._raycaster.set(this.camera.position, dir);
+    this._raycaster.camera = this.camera;
+
+    const chunk = SceneManager._scene._chunk;
+    if (!chunk) {
+        console.warn("[掘削UI] chunkが存在しない");
+        return;
+    }
+
+    const intersects = this._raycaster.intersectObjects(chunk.meshGroup.children, false);
+    const hit = intersects.length > 0 ? intersects[0] : null;
+
+    if (hit) {
+        this._promptElement.style.display = 'block';
+        this._isPromptVisible = true;
+        console.log(`[掘削UI] ヒット → 表示ON`, hit.point);
+    } else {
+        this._promptElement.style.display = 'none';
+        this._isPromptVisible = false;
+        console.log(`[掘削UI] ヒットなし → 表示OFF`);
+        return;
+    }
+
+    // ✅ 表示されているときのみ掘削許可
+    if (this._isPromptVisible && Input.isTriggered('e')) {
+        const pos = hit.point;
+        console.log(`[掘削] Eキー → 掘削実行 at`, pos);
+        chunk.removeBlockAtWorldPosition(pos);
+    } else if (Input.isTriggered('e')) {
+        console.log(`[掘削] Eキー押されたが、UI非表示 → 無視`);
+    }
+}
+
+
+    remove() {
+        if (this._promptElement) {
+            this._promptElement.remove();
+            this._promptElement = null;
+        }
+    }
+}
+
+
+
 Scene_Map.prototype.playerCreate = function () {
     this._cameraController = new FPSCameraController(this._threeCamera);
     this._cameraController.enablePointerLock();
+
+    this._diggingController = new DiggingController(this);
 };
 
 
 Scene_Map.prototype.playerUpdate = function () {
     if (this._cameraController) {
         this._cameraController.update();
+    }
+
+    if (this._diggingController) {
+        this._diggingController.update();
     }
 };
 
